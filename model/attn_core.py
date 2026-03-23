@@ -1,5 +1,6 @@
 """
-Core Bidirectional Attention Layer (Like PALM) and concurreny FFN
+Core Bidirectional Attention Layer (Like PALM) and concurreny FFN.
+This layer do not include resiaul sum!
 """
 
 import torch
@@ -8,7 +9,7 @@ import torch.nn.functional as F
 import alibi_utils
 from typing import List
 import math
-# from swi_glu import SwiGLU
+
 
 class AttentionLayer(nn.Module):
 

@@ -25,6 +25,7 @@ Other optimizations, like gated attention and novel attention residuals (Kimi AI
 * [EDGAR-CORPUS: Billions of Tokens Make The World Go Round](https://arxiv.org/abs/2109.14394)
 * [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation](https://arxiv.org/abs/2108.12409)
 * [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+* [Query-Key Normalization for Transformers](https://arxiv.org/abs/2010.04245)
 
 ## Training
 The dataset is composed of news, reports, and specialized text:

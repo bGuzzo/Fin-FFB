@@ -9,7 +9,7 @@ Its primary application is to embed news and financial reports for the [Fin-PT](
 
 ## Core Concepts
 The core idea is to create a large (Fat) and shallow (Fast) model like BERT, but with a parallel optimization: FFN & Self-Attention are computed concurrently and then joined by summation.
-Other optimizations, like gated attention and attention residuals, are used to gain performance edges and stabilize training.
+Other optimizations, like gated attention and novel attention residuals (Kimi AI, [Attention Residuals](https://arxiv.org/abs/2603.15031)), are used to gain performance edges and stabilize training.
 
 * Initially, the model will have a maximum of 3 layers, with a d_model of up to 2048.
 * The tokenized choosen is `albert-base-v2` due to it's small vocabulaty size (30k).
@@ -24,6 +24,7 @@ Other optimizations, like gated attention and attention residuals, are used to g
 * [Root Mean Square Layer Normalization](https://arxiv.org/abs/1910.07467)
 * [EDGAR-CORPUS: Billions of Tokens Make The World Go Round](https://arxiv.org/abs/2109.14394)
 * [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation](https://arxiv.org/abs/2108.12409)
+* [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
 
 ## Training
 The dataset is composed of news, reports, and specialized text:

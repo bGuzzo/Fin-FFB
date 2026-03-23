@@ -29,7 +29,6 @@ Other optimizations, like gated attention and novel attention residuals (Kimi AI
 ## Training
 The dataset is composed of news, reports, and specialized text:
 * 100 years of **New York Times** news (title + abstract): [nyt_100y_news_headlines](https://huggingface.co/datasets/bguzzo2k/nyt_100y_news_headlines)
-* Timeless asset reports (fully synthetic): [tkrs_timeless_report](https://huggingface.co/datasets/bguzzo2k/tkrs_timeless_report)
 * Wikipedia (Financial Subsets)
 * EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face)
 

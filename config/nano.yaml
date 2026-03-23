@@ -1,0 +1,41 @@
+# ==============================================================================
+# Fin-FFB Nano Configuration
+# ------------------------------------------------------------------------------
+# Optimized for: Ultra-fast prototyping, CPU training, or very low-end GPUs.
+# ==============================================================================
+
+model:
+  # Model Dimensions
+  vocab_size: 30000        # Standard for albert-base-v2 tokenizer.
+  d_model: 128             # Hidden dimension size (Wide/Fat focus).
+  num_layers: 2            # Number of AttnRes blocks (Fast/Shallow focus).
+  num_heads: 4             # Number of attention heads (d_head = 32).
+  dropout: 0.1             # Regularization to prevent overfitting.
+  ffn_factor: 4            # Multiplier for the hidden layer in FFN (d_ffn = 512).
+  
+  # Initialization & Normalization
+  initializer_range: 0.02  # StdDev for weight initialization (standard for BERT).
+  norm_eps: 1.0e-5         # Epsilon for RMSNorm to avoid division by zero.
+
+training:
+  # Hardware & Efficiency
+  batch_size: 128          # Number of samples processed per GPU step.
+  gradient_accumulation_steps: 1 # Number of steps to accumulate gradients (N/A for Nano).
+  mixed_precision: "fp16"  # Use Float16 to save VRAM and speed up training.
+  
+  # Optimization (AdamW)
+  learning_rate: 1.0e-3    # Higher LR possible for smaller models.
+  weight_decay: 0.01       # L2 regularization applied only to non-bias/norm weights.
+  betas: [0.9, 0.98]       # AdamW momentum parameters; 0.98 is more stable for transformers.
+  eps: 1.0e-6              # Term added to denominator to improve numerical stability.
+  clip_grad_norm: 1.0      # Maximum norm for gradients to prevent "explosions".
+  
+  # Scheduler
+  lr_scheduler_type: "cosine" # Gradual LR decay for better convergence.
+  warmup_steps: 500        # Linear increase of LR at the start to stabilize training.
+
+dataset:
+  # MLM Configuration
+  max_seq_len: 512         # Training window (ALiBi allows extrapolation beyond this).
+  mask_probability: 0.15   # Percentage of tokens to mask for MLM objective.
+  label_smoothing: 0.1     # Prevents overconfidence, improving generalization.

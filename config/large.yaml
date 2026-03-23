@@ -1,0 +1,41 @@
+# ==============================================================================
+# Fin-FFB Large (Fat) Configuration
+# ------------------------------------------------------------------------------
+# Optimized for: High-end Consumer GPUs (16GB-24GB VRAM, e.g., RTX 3090/4090).
+# ==============================================================================
+
+model:
+  # Model Dimensions
+  vocab_size: 30000
+  d_model: 2048            # Extremely wide (Fat) for high representational capacity.
+  num_layers: 3            # Keeps the model Fast (low latency) despite width.
+  num_heads: 32            # d_head = 64.
+  dropout: 0.1
+  ffn_factor: 4            # d_ffn = 8192.
+  
+  # Initialization & Normalization
+  initializer_range: 0.02
+  norm_eps: 1.0e-5
+
+training:
+  # Hardware & Efficiency
+  batch_size: 16           # Very wide models consume significant VRAM.
+  gradient_accumulation_steps: 8 # Effective batch size = 128. Crucial for 24GB GPUs.
+  mixed_precision: "bf16"
+  
+  # Optimization
+  learning_rate: 1.5e-4    # Lower LR for large models to ensure stable convergence.
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  eps: 1.0e-6
+  clip_grad_norm: 1.0
+  
+  # Scheduler
+  lr_scheduler_type: "cosine"
+  warmup_steps: 2000
+
+dataset:
+  # MLM Configuration
+  max_seq_len: 512
+  mask_probability: 0.15
+  label_smoothing: 0.1

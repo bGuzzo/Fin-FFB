@@ -10,8 +10,9 @@ import torch
 import torch.nn as nn
 from typing import List, Optional, Tuple, Union
 from .attn_res_block import AttnResBlock
+from huggingface_hub import PyTorchModelHubMixin
 
-class FinFFB(nn.Module):
+class FinFFB(nn.Module, PyTorchModelHubMixin):
     """
     Fin-FFB (Financial Fast Fat BERT) Encoder.
     
@@ -36,8 +37,7 @@ class FinFFB(nn.Module):
         num_layers: int = 3,
         num_heads: int = 12,
         dropout: float = 0.1,
-        ffn_factor: int = 4,
-        padding_idx: Optional[int] = None,
+        ffn_factor: int = 4
     ):
         super(FinFFB, self).__init__()
         self.d_model = d_model
@@ -46,8 +46,7 @@ class FinFFB(nn.Module):
         # Token Embeddings
         self.embeddings = nn.Embedding(
             vocab_size, 
-            d_model, 
-            padding_idx=padding_idx
+            d_model
         )
         
         # Transformation Layers (Intermediate)

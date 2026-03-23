@@ -13,7 +13,7 @@ to extrapolate to sequence lengths longer than those seen during training.
 import torch
 from typing import List, Dict, Tuple
 
-# Global cache for ALiBi bias matrices: (seq_len, slopes_id, device, dtype) -> bias_tensor
+# Global cache for ALiBi bias matrices: (seq_len, num_heads, device, dtype) -> bias_tensor
 _ALIBI_CACHE: Dict[Tuple[int, int, torch.device, torch.dtype], torch.Tensor] = {}
 
 def get_slopes(n_heads: int) -> List[float]:
@@ -45,12 +45,13 @@ def generate_bidirectional_alibi_bias(
         A bias tensor of shape (num_heads, seq_len, seq_len).
     """
     # Create a unique key for the cache based on parameters that affect the result.
-    # We use the object ID of slopes as a proxy for the tensor values, assuming slopes
-    # are registered buffers and don't change frequently.
-    cache_key = (seq_len, id(slopes), device, dtype)
+    # We use the number of heads (slopes.shape[0]) to allow sharing the bias matrix
+    # across different layers with the same configuration.
+    num_heads = slopes.shape[0]
+    cache_key = (seq_len, num_heads, device, dtype)
     
     if cache_key in _ALIBI_CACHE:
-        # Verify shape just in case of ID collision (extremely unlikely but safe)
+        # Verify shape just in case
         cached_bias = _ALIBI_CACHE[cache_key]
         if cached_bias.shape[1] == seq_len:
             return cached_bias

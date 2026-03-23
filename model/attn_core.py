@@ -139,6 +139,8 @@ class AttentionLayer(nn.Module):
         swiglu = F.dropout(swiglu, p=self.dropout, training=self.training)
 
         x_out_proj = self.ffn_linear_dw(swiglu)
+        
+        # TODO check if this can be removed
         x_out_proj = F.dropout(x_out_proj, p=self.dropout, training=self.training)
 
         return x_out_proj

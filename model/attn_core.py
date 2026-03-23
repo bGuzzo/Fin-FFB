@@ -1,12 +1,14 @@
 """
 Core Bidirectional Attention Layer (Like PALM) and concurreny FFN.
 This layer do not include resiaul sum!
+
+TODO: Add QK normalization
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import alibi_utils
+from . import alibi_utils
 from typing import List
 import math
 
@@ -52,7 +54,6 @@ class AttentionLayer(nn.Module):
 
         # AliBi Slopes
         self.alibi_head_slopes: List[float] = alibi_utils.get_slopes(num_heads)
-        self.alibi_slopes: torch.Tensor = torch.tensor([], dtype=torch.float32) # Inizialize slef vaiable (avoid IDE warning)
         self.register_buffer(
             "alibi_slopes",
             torch.tensor(self.alibi_head_slopes, dtype=torch.float32).view(num_heads, 1, 1)
@@ -74,7 +75,7 @@ class AttentionLayer(nn.Module):
         # Generate the bias using the utility function
         alibi_bias = alibi_utils.generate_bidirectional_alibi_bias(
             seq_len=seq_len, 
-            slopes=self.alibi_slopes, 
+            slopes=self.alibi_slopes,  # pyright: ignore[reportArgumentType]
             dtype=scores.dtype, 
             device=scores.device
         )

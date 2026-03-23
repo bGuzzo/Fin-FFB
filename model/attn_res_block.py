@@ -89,7 +89,7 @@ class AttnResBlock(nn.Module):
         
         # 3. Compute depth-wise attention logits.
         # logits = w_l^T * K
-        # 'd' is d_model, 'n' is number of sources, 'b' is batch, 't' is time.
+        # 'd' is d_model, 'n' is number of sources, 'b' is batch, 't' is seq len.
         wl = self.attn_res_proj.weight.squeeze(0)
         logits = torch.einsum('d, n b t d -> n b t', wl, K)
         

@@ -135,11 +135,48 @@ def test_initialization_state():
     assert torch.all(block.attn_res_proj.weight == 0), "Pseudo-query wl must be initialized to zero."
     print("Initialization check passed.")
 
+def test_fin_ffb_model():
+    print("\nTesting FinFFB Model...")
+    vocab_size = 1000
+    batch_size = 2
+    seq_len = 32
+    d_model = 256
+    num_layers = 3
+    num_heads = 8
+    
+    model = FinFFB(
+        vocab_size=vocab_size,
+        d_model=d_model,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        dropout=0.1
+    )
+    
+    # Mock input_ids
+    input_ids = torch.randint(0, vocab_size, (batch_size, seq_len))
+    
+    # Forward pass
+    output = model(input_ids)
+    
+    assert output.shape == (batch_size, seq_len, d_model), \
+        f"Expected output shape {(batch_size, seq_len, d_model)}, got {output.shape}"
+    
+    # Test with return_history=True
+    output, history = model(input_ids, return_history=True)
+    
+    # history should contain v0 (embedding) + v1, v2, v3 (layer outputs) = 4 tensors
+    assert len(history) == num_layers + 1, \
+        f"Expected history length {num_layers + 1}, got {len(history)}"
+    
+    print("FinFFB model tests passed.")
+
 if __name__ == "__main__":
     try:
+        from model.fin_ffb import FinFFB
         test_attention_layer()
         test_attn_res_block()
         test_initialization_state()
+        test_fin_ffb_model()
         print("\nAll tests completed successfully.")
     except Exception as e:
         print(f"\nTest failed with error: {e}")

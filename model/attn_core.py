@@ -1,8 +1,15 @@
 """
-Core Bidirectional Attention Layer (Like PALM) and concurreny FFN.
-This layer do not include resiaul sum!
+Core Bidirectional Attention Layer (PaLM-style parallel architecture).
 
-TODO: Add QK normalization
+This module implements the transformation function f_l(h_l) used within the 
+Attention Residuals (AttnRes) framework. In this architecture, each layer 
+computes Attention and FFN in parallel on the same normalized input.
+
+Crucially, this layer does NOT include its own additive residual connection 
+(i.e., it computes f_l(h_l) but not h_l + f_l(h_l)), as the depth-wise 
+selective aggregation mechanism handles the information flow across depth.
+
+Ref: https://arxiv.org/abs/2603.15031
 """
 
 import torch
@@ -14,6 +21,12 @@ import math
 
 
 class AttentionLayer(nn.Module):
+    """
+    Parallel Attention and FFN transformation layer.
+    
+    This implementation follows the PaLM/GPT-J style where Attention and 
+    Feed-Forward networks are computed concurrently on the same normalized input.
+    """
 
     def __init__(
         self,
@@ -34,7 +47,7 @@ class AttentionLayer(nn.Module):
         ), "d_model must be divisible by num_heads"
         self.d_ffn = d_model * ffn_factor
 
-        # RMS pre-normlization
+        # RMS pre-normalization
         self.rms_norm = nn.RMSNorm(d_model)
 
         # Attention modules
@@ -42,13 +55,13 @@ class AttentionLayer(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
 
-        # FFW modules
+        # FFN modules
         self.ffn_linear_up_1 = nn.Linear(d_model, self.d_ffn)
         self.ffn_linear_up_2 = nn.Linear(d_model, self.d_ffn)
         self.ffn_linear_dw = nn.Linear(self.d_ffn, d_model)
-        # self.swi_glu = SwiGLU(d_model)
 
-        # Gating Projection (G1), like: https://arxiv.org/abs/2505.06708
+        # Gating Projection (G1), following gated attention architectures
+        # Ref: https://arxiv.org/abs/2505.06708
         self.gate_proj = nn.Linear(d_model, d_model)
         self.out_proj = nn.Linear(d_model, d_model)
 
@@ -63,71 +76,64 @@ class AttentionLayer(nn.Module):
         batch_size, seq_len, _ = x.shape
         
         # Project and reshape for multi-head attention
-        # q, k, v size: [batch_size, self.num_heads, seq_len, self.d_head]
         q = self.q_proj(x).view(batch_size, seq_len, self.num_heads, self.d_head).transpose(1, 2)
         k = self.k_proj(x).view(batch_size, seq_len, self.num_heads, self.d_head).transpose(1, 2)
         v = self.v_proj(x).view(batch_size, seq_len, self.num_heads, self.d_head).transpose(1, 2)
         
-        # Calculate standard scaled dot-product scores
-        # scores size: [batch_size, self.num_heads, seq_len, seq_len]
+        # Scaled dot-product attention
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_head)
         
-        # Generate the bias using the utility function
+        # Add bidirectional ALiBi bias
         alibi_bias = alibi_utils.generate_bidirectional_alibi_bias(
             seq_len=seq_len, 
             slopes=self.alibi_slopes,  # pyright: ignore[reportArgumentType]
             dtype=scores.dtype, 
             device=scores.device
         )
-        
-        # Add ALiBi bias to the attention scores
         scores = scores + alibi_bias
 
-        # Softmax and context calculation
         attn_weights = F.softmax(scores, dim=-1)
-        # Apply attention droput to blind the model over attention scores
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
-        # Context size: [batch_size, self.num_heads, seq_len, self.d_head]
+        
         context = torch.matmul(attn_weights, v)
-
-        # Reshape and compute attention output
-        # Context traspose size  [batch_size, seq_lens, self.num_heads, self.d_head]
         attn_output = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
 
-        # Apply gating like Gated Attention for Large Language Models. 
-        # Ref: https://arxiv.org/abs/2505.06708
+        # Apply Gated Attention mechanism
         gate = torch.sigmoid(self.gate_proj(x))
         gate_attn_output = gate * attn_output
 
         gated_out = self.out_proj(gate_attn_output)
-        # Dropout after final projection (GPT-J style droput, before sum)
         gated_out = F.dropout(gated_out, p=self.dropout, training=self.training)
         
         return gated_out
     
     def _compute_ffn(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Compute FFW layer like SwiGLU used by LLAMA.
+        Compute SwiGLU FFN (as used in Llama architectures).
         Ref: https://arxiv.org/abs/2302.13971
         """
-        # Projection to hier dim
         x_in_proj_1 = self.ffn_linear_up_1(x)
         x_in_proj_2 = self.ffn_linear_up_2(x)
-        # SwiGLU activation like LLAMA
+        
+        # SwiGLU: Swish(xW) * xV
         swish = x_in_proj_1 * torch.sigmoid(x_in_proj_1)
         swiglu = swish * x_in_proj_2
         
-        # Inner droput to prevent overfitting
         swiglu = F.dropout(swiglu, p=self.dropout, training=self.training)
         
-        # Downscale and dropuout (GPT-J style droput, before sum)
         x_out_proj = self.ffn_linear_dw(swiglu)
         x_out_proj = F.dropout(x_out_proj, p=self.dropout, training=self.training)
 
         return x_out_proj
 
-    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for the transformation f_l(h_l).
+        
+        Note: This method computes the parallel Attention + FFN block. It does 
+        NOT include a residual connection, as that is managed by the depth-wise 
+        attention in the AttnRes wrapper.
+        """
         x_norm = self.rms_norm(x)
         attn_output = self._compute_attention(x_norm)
         ffn_output = self._compute_ffn(x_norm)

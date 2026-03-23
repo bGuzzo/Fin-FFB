@@ -17,15 +17,16 @@ from .attn_core import AttentionLayer
 
 class AttnResBlock(nn.Module):
     """
-    Wraps an AttentionLayer to implement Full Attention Residuals.
+    Wraps an AttentionLayer to implement Full Attention Residuals (AttnRes).
     
-    Each layer selectively aggregates previous layer outputs (and the initial 
-    embedding) using learned, content-dependent attention weights. This 
-    mitigates PreNorm dilution by allowing the model to bypass the standard 
-    'additive recurrence' bottleneck.
+    This module serves two roles depending on 'final_layer':
+    1.  Intermediate Layer: Selectively aggregates all preceding representations 
+        into h_l, applies the transformation f_l(h_l), and updates the history.
+    2.  Final Output Layer: Aggregates the full history (all layer outputs + 
+        embedding) to produce the final model representation, skipping the 
+        transformation and history update.
     
-    In this architecture, each AttentionLayer (which computes Attention and 
-    FFN concurrently) is treated as a single block in the depth-wise attention.
+    Ref: https://arxiv.org/abs/2603.15031
     """
     
     def __init__(
@@ -35,28 +36,31 @@ class AttnResBlock(nn.Module):
         num_heads: int,
         dropout: float,
         ffn_factor: int = 4,
+        final_layer: bool = False
     ):
         super(AttnResBlock, self).__init__()
         self.layer_idx = layer_idx
         self.d_model = d_model
+        self.final_layer = final_layer
         
-        # The core transformation layer f_l(h_l).
-        # In this project, f_l computes Attention and FFN in parallel (PaLM style).
-        self.layer = AttentionLayer(
-            layer=layer_idx,
-            d_model=d_model,
-            num_heads=num_heads,
-            dropout=dropout,
-            ffn_factor=ffn_factor
-        )
+        if not self.final_layer:
+            # The core transformation layer f_l(h_l).
+            # Computes Attention and FFN in parallel (PaLM style).
+            self.layer = AttentionLayer(
+                layer=layer_idx,
+                d_model=d_model,
+                num_heads=num_heads,
+                dropout=dropout,
+                ffn_factor=ffn_factor
+            )
         
         # Learned pseudo-query vector (w_l) for depth-wise attention.
         # Represented as a Linear projection to compute scalar logits for each source.
         self.attn_res_proj = nn.Linear(d_model, 1, bias=False)
         
         # Initialize pseudo-query to zero.
-        # Per paper Section 5: This ensures initial attention weights are uniform 
-        # across sources, reducing AttnRes to an equal-weight average at start-up.
+        # Per paper Section 5: This ensures initial attention weights are uniform,
+        # reducing AttnRes to an equal-weight average at start-up.
         nn.init.zeros_(self.attn_res_proj.weight)
         
         # RMSNorm for key representations in depth-wise attention.
@@ -67,7 +71,7 @@ class AttnResBlock(nn.Module):
     def forward(
         self, 
         history: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]] | torch.Tensor:
         """
         Forward pass for Full Attention Residuals.
         
@@ -77,8 +81,11 @@ class AttnResBlock(nn.Module):
                      Shape: [Batch, SeqLen, d_model]
             
         Returns:
-            v_l: The output of the current layer f_l(h_l).
-            history: Updated history list including v_l.
+            If final_layer:
+                h_out: The final aggregated hidden state [Batch, SeqLen, d_model].
+            Else:
+                v_l: The output of the current layer transformation f_l(h_l).
+                history: Updated history list including v_l.
         """
         # 1. Prepare Value matrix (V) from all preceding outputs.
         # V shape: [num_sources, Batch, SeqLen, d_model]
@@ -87,24 +94,26 @@ class AttnResBlock(nn.Module):
         # 2. Normalize keys (K) to stabilize softmax attention.
         K = self.attn_res_norm(V)
         
-        # 3. Compute depth-wise attention logits.
-        # logits = w_l^T * K
-        # 'd' is d_model, 'n' is number of sources, 'b' is batch, 't' is seq len.
+        # 3. Compute depth-wise attention logits using learned query w_l.
         wl = self.attn_res_proj.weight.squeeze(0)
         logits = torch.einsum('d, n b t d -> n b t', wl, K)
         
-        # 4. Compute Softmax Weights (alpha).
-        # Each layer l independently decides how much to attend to each source i < l.
+        # 4. Compute Softmax Weights (alpha) across the depth dimension.
         alpha = F.softmax(logits, dim=0)
         
         # 5. Selective Aggregation (h_l).
         # h_l = sum(alpha_i * v_i)
         hl = torch.einsum('n b t, n b t d -> b t d', alpha, V)
         
-        # 6. Apply concurrent Attention & FFN transformation (f_l).
+        # If this is the final aggregation layer, we return the hidden state 
+        # directly for the LM head.
+        if self.final_layer:
+            return hl
+        
+        # 6. Apply core transformation f_l (Attention & FFN).
         vl = self.layer(hl)
         
-        # 7. Update history for the next layer in the stack.
+        # 7. Update history for subsequent layers.
         history.append(vl)
         
         return vl, history

@@ -94,18 +94,37 @@ def test_attn_res_block():
     # attention weights over the depth dimension.
     # Initially, wl is zeroed, so weights should be uniform.
     
-    # We can check the internal aggregation by manually inspecting the weights 
-    # (if we modify AttnResBlock to return them or use a hook).
-    # Since we strictly follow the code provided, we check if it runs without 
-    # dimensionality errors for a larger stack.
-    
     for i in range(2, 5):
         block = AttnResBlock(i, d_model, num_heads, dropout)
         vi, history = block(history)
         assert vi.shape == (batch_size, seq_len, d_model)
         assert len(history) == i + 2
         
-    print(f"Stack of 5 layers (Depth-wise attention) passed. History size: {len(history)}")
+    print(f"Stack of 5 layers passed. History size: {len(history)}")
+
+    # 4. Test Final Output Layer Aggregation
+    # The final layer should aggregate the full history and return a single tensor.
+    final_block = AttnResBlock(
+        layer_idx=5,
+        d_model=d_model,
+        num_heads=num_heads,
+        dropout=dropout,
+        final_layer=True
+    )
+    
+    h_out = final_block(history)
+    
+    # Verify it returns a single tensor, not a tuple
+    assert isinstance(h_out, torch.Tensor), "Final layer must return a single Tensor."
+    assert h_out.shape == (batch_size, seq_len, d_model)
+    
+    # Since pseudo-query is zeroed, weights are uniform. 
+    # h_out should be the mean of all history tensors.
+    expected_out = torch.stack(history).mean(dim=0)
+    assert torch.allclose(h_out, expected_out, atol=1e-5), \
+        "Final layer aggregation should be uniform average at initialization."
+    
+    print("Final Output Layer (Aggregation Only) tests passed.")
 
 def test_initialization_state():
     print("\nTesting Weight Initialization...")

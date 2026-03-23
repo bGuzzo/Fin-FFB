@@ -12,7 +12,7 @@ Ref: https://arxiv.org/abs/2603.15031
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union
 from .attn_core import AttentionLayer
 
 class AttnResBlock(nn.Module):
@@ -70,8 +70,9 @@ class AttnResBlock(nn.Module):
 
     def forward(
         self, 
-        history: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]] | torch.Tensor:
+        history: List[torch.Tensor],
+        attention_mask: Optional[torch.Tensor] = None
+    ) -> Union[Tuple[torch.Tensor, List[torch.Tensor]], torch.Tensor]:
         """
         Forward pass for Full Attention Residuals.
         
@@ -79,6 +80,7 @@ class AttnResBlock(nn.Module):
             history: List of tensors [v_0, v_1, ..., v_{l-1}] where v_0 is the 
                      token embedding and v_{1...l-1} are previous layer outputs.
                      Shape: [Batch, SeqLen, d_model]
+            attention_mask: Optional mask for attention scores in core transformation.
             
         Returns:
             If final_layer:
@@ -111,7 +113,7 @@ class AttnResBlock(nn.Module):
             return hl
         
         # 6. Apply core transformation f_l (Attention & FFN).
-        vl = self.layer(hl)
+        vl = self.layer(hl, attention_mask=attention_mask)
         
         # 7. Update history for subsequent layers.
         history.append(vl)

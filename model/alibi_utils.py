@@ -11,8 +11,10 @@ to extrapolate to sequence lengths longer than those seen during training.
 """
 
 import torch
-from typing import List
+from typing import List, Dict, Tuple
 
+# Global cache for ALiBi bias matrices: (seq_len, slopes_id, device, dtype) -> bias_tensor
+_ALIBI_CACHE: Dict[Tuple[int, int, torch.device, torch.dtype], torch.Tensor] = {}
 
 def get_slopes(n_heads: int) -> List[float]:
     """
@@ -31,9 +33,7 @@ def generate_bidirectional_alibi_bias(
 ) -> torch.Tensor:
     """
     Constructs the ALiBi bias matrix for bidirectional (non-causal) attention.
-    
-    Unlike causal ALiBi which only penalizes the 'past', bidirectional ALiBi
-    penalizes distance in both directions symmetrically.
+    Utilizes a global cache to avoid redundant computations.
 
     Args:
         seq_len: The length of the input sequence.
@@ -44,19 +44,29 @@ def generate_bidirectional_alibi_bias(
     Returns:
         A bias tensor of shape (num_heads, seq_len, seq_len).
     """
+    # Create a unique key for the cache based on parameters that affect the result.
+    # We use the object ID of slopes as a proxy for the tensor values, assuming slopes
+    # are registered buffers and don't change frequently.
+    cache_key = (seq_len, id(slopes), device, dtype)
+    
+    if cache_key in _ALIBI_CACHE:
+        # Verify shape just in case of ID collision (extremely unlikely but safe)
+        cached_bias = _ALIBI_CACHE[cache_key]
+        if cached_bias.shape[1] == seq_len:
+            return cached_bias
+
     # Create a 1D tensor of positions: [0, 1, 2, ..., seq_len-1]
     positions = torch.arange(seq_len, device=device, dtype=torch.long)
 
     # Compute absolute bidirectional distances using broadcasting.
     # Resulting 'distances' shape: (seq_len, seq_len)
-    # entry (i, j) is |i - j|
     distances = torch.abs(positions.unsqueeze(1) - positions.unsqueeze(0))
 
     # Apply the slopes and negate. 
-    # ALiBi penalizes distance: score = (qK^T)/sqrt(d) - slope * distance
-    # slopes shape: (num_heads, 1, 1)
-    # distances shape: (seq_len, seq_len)
     # Result shape: (num_heads, seq_len, seq_len)
     alibi_bias = -1.0 * slopes * distances.to(dtype)
+    
+    # Update cache
+    _ALIBI_CACHE[cache_key] = alibi_bias
 
     return alibi_bias

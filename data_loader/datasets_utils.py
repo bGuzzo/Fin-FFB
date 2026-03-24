@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 from datasets import load_dataset, load_from_disk
 from typing import Optional
 
+# TODO add sampling
 
 class NYTDataset(Dataset):
     """

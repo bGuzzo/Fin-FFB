@@ -335,6 +335,7 @@ def main():
                 accumulated_loss = 0.0
 
                 # --- Periodical Checkpointing ---
+                # TODO pout this outside so respect the input steps
                 if global_step % args.save_steps == 0:
                     checkpoint_path = training_dir / f"checkpoint-{global_step}.pt"
                     torch.save(

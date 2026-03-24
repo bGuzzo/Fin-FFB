@@ -5,7 +5,7 @@ Verifies NYTDataset, EDGARDataset, CombinedFinancialDataset, and FinancialDataCo
 
 import torch
 from torch.utils.data import DataLoader
-from data_loader.datasets import NYTDataset, EDGARDataset, CombinedFinancialDataset
+from data_loader.datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset
 from data_loader.collector import FinancialDataCollector, get_dataloader
 import sys
 

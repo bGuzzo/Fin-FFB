@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from typing import Optional
 
 
@@ -10,9 +10,11 @@ class NYTDataset(Dataset):
     Concatenates 'headline' and 'abstract'.
     """
 
-    def __init__(self, split: str = "train"):
+    def __init__(self, split: str = "all"):
         self.ds = load_dataset(
-            "bguzzo2k/nyt_100y_news_headlines", split=split, streaming=False
+            # "bguzzo2k/nyt_100y_news_headlines", 
+            "/Volumes/NVME_EXT/Datasets/nyt_100y_news_headlines",
+            split=split, streaming=False
         )
 
     def __len__(self):
@@ -33,10 +35,13 @@ class EDGARDataset(Dataset):
     Concatenates available sections (1-15).
     """
 
-    def __init__(self, split: str = "train"):
+    def __init__(self, split: str = "all"):
         # Loading 'full' config for EDGAR
         self.ds = load_dataset(
-            "eloukas/edgar-corpus", "full", split=split, streaming=False
+            # "eloukas/edgar-corpus", 
+            "/Volumes/NVME_EXT/Datasets/eloukas_edgar-corpus",
+            # config="full", 
+            split=split, streaming=False
         )
         self.sections = [f"section_{i}" for i in range(1, 16)]
         # Add sub-sections commonly found
@@ -67,7 +72,7 @@ class CombinedFinancialDataset(Dataset):
 
     def __init__(self, datasets: list[Dataset]):
         self.datasets = datasets
-        self.lengths = [len(d) for d in datasets] # pyright: ignore[reportArgumentType]
+        self.lengths = [len(d) for d in datasets]  # pyright: ignore[reportArgumentType]
         self.total_len = sum(self.lengths)
 
     def __len__(self):
@@ -82,3 +87,14 @@ class CombinedFinancialDataset(Dataset):
                 return self.datasets[i][idx]
             idx -= length
         raise IndexError
+
+# Test only
+if __name__ == "__main__":
+    # nyt_ds = NYTDataset(split="all")
+    
+    # print(len(nyt_ds))
+    # print(nyt_ds[0])
+
+    edgar_ds = EDGARDataset()
+    print(len(edgar_ds))
+    print(edgar_ds[0])

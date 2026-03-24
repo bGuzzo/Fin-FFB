@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 from typing import List, Dict, Any
-from .datasets import NYTDataset, EDGARDataset, CombinedFinancialDataset
+from .datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset
 
 
 class FinancialDataCollector:
@@ -125,10 +125,10 @@ def get_dataloader(
 
     # 1. Initialize Individual Datasets (Memory-mapped via HF Datasets)
     nyt_ds = NYTDataset(split="train")
-    edgar_ds = EDGARDataset(split="train")
+    # edgar_ds = EDGARDataset(split="train")
 
     # 2. Combine into a unified training stream
-    combined_ds = CombinedFinancialDataset([nyt_ds, edgar_ds])
+    combined_ds = CombinedFinancialDataset([nyt_ds])
 
     # 3. Initialize the Collector (replaces nested collate_fn)
     collector = FinancialDataCollector(
@@ -149,3 +149,17 @@ def get_dataloader(
     )
 
     return dataloader
+
+# Test
+if __name__ == "__main__":
+    dataloader = get_dataloader()
+    batch = next(iter(dataloader))
+    
+    print(batch.keys())
+    print(batch["input_ids"].shape)
+    print(batch["attention_mask"].shape)
+    print(batch["labels"].shape)
+
+    print(batch["input_ids"])
+    print(batch["attention_mask"])
+    print(batch["labels"])

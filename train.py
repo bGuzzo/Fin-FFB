@@ -27,6 +27,7 @@ from utils.train_utils import (
     initialize_optimizer_and_scheduler,
     load_config,
     log_training_results,
+    plot_loss_curve,
     save_checkpoint,
     save_final_artifacts,
     setup_mixed_precision,
@@ -220,6 +221,9 @@ def main() -> None:
         },
         "config": config,
     }, training_dir, args.config)
+
+    # Generate loss visualization
+    plot_loss_curve(losses, training_dir, args.config)
 
     print(f"Session complete. Logs: {training_dir}")
 

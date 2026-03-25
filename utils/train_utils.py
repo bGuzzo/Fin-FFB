@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import yaml
+import matplotlib.pyplot as plt
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from transformers import get_cosine_schedule_with_warmup
@@ -340,3 +341,34 @@ def _get_optimizer_grouped_parameters(
         {"params": decay_params, "weight_decay": weight_decay},
         {"params": no_decay_params, "weight_decay": 0.0},
     ]
+
+
+def plot_loss_curve(losses: List[float], training_dir: Path, config_name: str) -> None:
+    """
+    Generates and saves a line chart of the training loss.
+
+    Args:
+        losses: List of loss values recorded during training.
+        training_dir: Path to the directory where the chart will be saved.
+        config_name: Name of the configuration used.
+    """
+    if not losses:
+        LOGGER.warning("No losses recorded. Skipping loss curve generation.")
+        return
+
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    plot_path = training_dir / f"loss_curve_{config_name or ''}_{timestamp}.png"
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(losses, label="Training Loss")
+    plt.title(f"Training Loss Curve - {config_name}")
+    plt.xlabel("Optimization Step")
+    plt.ylabel("Loss")
+    plt.grid(True, linestyle="--", alpha=0.7)
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+    
+    LOGGER.info(f"Loss curve saved to {plot_path}")

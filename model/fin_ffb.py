@@ -6,6 +6,8 @@ financial forecasting and analysis. It integrates PaLM-style parallel
 computations, Full Attention Residuals (AttnRes), and Gated Attention.
 """
 
+VERSION = "1.0.0"
+
 import torch
 import torch.nn as nn
 from typing import List, Optional, Tuple, Union
@@ -48,6 +50,9 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         self.ffn_factor = ffn_factor
         self.num_heads = num_heads
         self.padding_idx = padding_idx
+
+        self.info_str : str = f"Fin-FBB Version {VERSION}. d_model={d_model}, num_layers={num_layers}, num_heads={num_heads}, dropout(train)={dropout}, ffn_factor={ffn_factor}"
+        print(self.info_str)
         
         # Token Embeddings
         self.embeddings = nn.Embedding(

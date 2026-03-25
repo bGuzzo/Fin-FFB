@@ -118,10 +118,7 @@ class AttentionLayer(nn.Module):
         # Apply Gated Attention mechanism
         gate = torch.sigmoid(self.gate_proj(x))
         gate_attn_output = gate * attn_output
-
         gated_out = self.out_proj(gate_attn_output)
-        gated_out = F.dropout(gated_out, p=self.dropout, training=self.training)
-
         return gated_out
 
     def _compute_ffn(self, x: torch.Tensor) -> torch.Tensor:
@@ -136,13 +133,8 @@ class AttentionLayer(nn.Module):
         swish = x_in_proj_1 * torch.sigmoid(x_in_proj_1)
         swiglu = swish * x_in_proj_2
 
-        swiglu = F.dropout(swiglu, p=self.dropout, training=self.training)
-
+        # Downscale
         x_out_proj = self.ffn_linear_dw(swiglu)
-        
-        # TODO check if this can be removed
-        x_out_proj = F.dropout(x_out_proj, p=self.dropout, training=self.training)
-
         return x_out_proj
 
     def forward(
@@ -150,6 +142,9 @@ class AttentionLayer(nn.Module):
     ) -> torch.Tensor:
         """
         Forward pass for the transformation f_l(h_l).
+
+        Returns: 
+            torch.Tensor: Dropout(SelfAttn(x) + FFN(x)).
 
         Note: This method computes the parallel Attention + FFN block. It does
         NOT include a residual connection, as that is managed by the depth-wise
@@ -159,4 +154,6 @@ class AttentionLayer(nn.Module):
         attn_output = self._compute_attention(x_norm, attention_mask=attention_mask)
         ffn_output = self._compute_ffn(x_norm)
 
-        return attn_output + ffn_output
+        # Dropout applied only after sum for more training stability
+        return F.dropout(attn_output + ffn_output, p=self.dropout, training=self.training)
+

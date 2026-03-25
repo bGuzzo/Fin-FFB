@@ -25,14 +25,14 @@ Other optimizations, like gated attention and novel attention residuals (Kimi AI
 * [EDGAR-CORPUS: Billions of Tokens Make The World Go Round](https://arxiv.org/abs/2109.14394)
 * [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation](https://arxiv.org/abs/2108.12409)
 * [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+* [Should You Mask 15% in Masked Language Modeling?](https://arxiv.org/abs/2202.08005)
 
 ## Training
 The dataset is composed of news, reports, and specialized text:
 * 100 years of **New York Times** news (title + abstract): [nyt_100y_news_headlines](https://huggingface.co/datasets/bguzzo2k/nyt_100y_news_headlines)
-* Wikipedia (Financial Subsets)
-* EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face)
+* EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face): [edgar_corpus](https://huggingface.co/datasets/eloukas/edgar-corpus)
 
-In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling).  
+In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 40% as the mask probability (read paper above for more details).  
 
 
 ## Improvements (to be applied)

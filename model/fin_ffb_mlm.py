@@ -24,25 +24,38 @@ class MLMHead(nn.Module):
 
     def __init__(self, d_model: int, vocab_size: int):
         super().__init__()
-        # Transformation layer
-        self.dense = nn.Linear(d_model, d_model)
-        self.act = nn.GELU()
-        self.rms_norm = nn.RMSNorm(d_model)
+        self.d_model = d_model
+        self.vocab_size = vocab_size
+
+        # Use modern SwiGLU activation
+        # Ref: https://arxiv.org/abs/2302.13971
+        self.swiglu_proj_1 = nn.Linear(self.d_model, self.d_model)
+        self.swiglu_proj_2 = nn.Linear(self.d_model, self.d_model)
 
         # Output layer (Logits)
-        self.decoder = nn.Linear(d_model, vocab_size)
+        # Use only one dense linear lajer to project final output to vocab size.
+        # Avoid useless information memorization in other head layers.
+        # All 'core' information/weights must be held in the levels underneath.
+        # Note: bias are kept seprate to learn the base frequency distribution of the tokens. 
+        self.decoder = nn.Linear(self.d_model, self.vocab_size)
 
-    def forward(self, h_states: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            h_states: Hidden states from the encoder [batch, seq_len, d_model].
+            x: Hidden states from the encoder [batch, seq_len, d_model].
         Returns:
             Logits over vocabulary [batch, seq_len, vocab_size].
         """
-        x = self.dense(h_states)
-        x = self.act(x)
-        x = self.rms_norm(x)
-        logits = self.decoder(x)
+
+        # Apply SwiGLU activation
+        x_proj_1 = self.swiglu_proj_1(x)
+        x_proj_2 = self.swiglu_proj_2(x)
+
+        x_swish = x_proj_1 * torch.sigmoid(x_proj_1)
+        x_swiglu = x_swish * x_proj_2
+
+        # Compute logits
+        logits = self.decoder(x_swiglu)
         return logits
 
 

@@ -18,8 +18,10 @@ _ALIBI_CACHE: Dict[Tuple[int, int, torch.device, torch.dtype], torch.Tensor] = {
 
 def get_slopes(n_heads: int) -> List[float]:
     """
-    Apply the general formula provided by the paper.
-    m_i = (2^(-8)/n))^i
+    Apply the general formula provided by the paper: m_i = (2^(-8)/n))^i
+    For the head #1 we get 0.7 while for head #16 we get 1/256 (0,004). It converge to 1 for larger n.
+
+    Note: it is a geometric series starting at 2ˆ(-8/16) = 2ˆ(-1/2), each time it's multiplied by itself. 
     """
     start = (2 ** ((-8)/n_heads))
     return [start * (start ** i) for i in range(n_heads)]
@@ -66,8 +68,13 @@ def generate_bidirectional_alibi_bias(
     # Apply the slopes and negate. 
     # Result shape: (num_heads, seq_len, seq_len)
     alibi_bias = -1.0 * slopes * distances.to(dtype)
+    alibi_bias = alibi_bias.to(device) # Parse to proper dtype format
     
     # Update cache
     _ALIBI_CACHE[cache_key] = alibi_bias
 
     return alibi_bias
+
+# Test only
+if __name__ == "__main__":
+    print(get_slopes(32))

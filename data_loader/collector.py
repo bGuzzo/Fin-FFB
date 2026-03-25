@@ -102,7 +102,9 @@ class FinancialDataCollector:
 def get_dataloader(
     batch_size: int = 8,
     max_length: int = 512,
-    mlm_probability: float = 0.15,
+    # Higher than common 15%, we use few tokens (1 to 2 billions)
+    # To hammer the model! xD
+    mlm_probability: float = 0.4, 
     tokenizer_name: str = "albert-base-v2",
     num_workers: int = 4,
     datasets: Optional[List[Dataset]] = None,

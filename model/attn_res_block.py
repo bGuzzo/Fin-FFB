@@ -33,11 +33,26 @@ class AttnResBlock(nn.Module):
         self,
         layer_idx: int,
         d_model: int,
-        num_heads: int,
-        dropout: float,
+        num_heads: int | None = None,
+        dropout: float | None = None,
         ffn_factor: int = 4,
         final_layer: bool = False
     ):
+        """
+        Initializes the AttnResBlock.
+
+        Args:
+            layer_idx: The index of this layer in the model stack.
+            d_model: The dimensionality of the input and output embeddings.
+            num_heads: Number of attention heads for the core transformation. 
+                Required if final_layer is False.
+            dropout: Dropout probability for the core transformation.
+            ffn_factor: Expansion factor for the FFN in the core transformation.
+            final_layer: If True, this block acts only as a final selective 
+                aggregator. It will not instantiate an internal AttentionLayer 
+                or perform a transformation/history update, instead returning 
+                the aggregated hidden state directly for the output head.
+        """
         super(AttnResBlock, self).__init__()
         self.layer_idx = layer_idx
         self.d_model = d_model
@@ -56,7 +71,7 @@ class AttnResBlock(nn.Module):
         
         # Learned pseudo-query vector (w_l) for depth-wise attention.
         # Represented as a Linear projection to compute scalar logits for each source.
-        self.attn_res_proj = nn.Linear(d_model, 1, bias=False)
+        self.attn_res_proj = nn.Linear(self.d_model, 1, bias=False)
         
         # Initialize pseudo-query to zero.
         # Per paper Section 5: This ensures initial attention weights are uniform,
@@ -66,7 +81,7 @@ class AttnResBlock(nn.Module):
         # RMSNorm for key representations in depth-wise attention.
         # Section 3.1: Prevents layers with large-magnitude outputs from 
         # dominating the attention weights.
-        self.attn_res_norm = nn.RMSNorm(d_model)
+        self.attn_res_norm = nn.RMSNorm(self.d_model)
 
     def forward(
         self, 
@@ -90,21 +105,38 @@ class AttnResBlock(nn.Module):
                 history: Updated history list including v_l.
         """
         # 1. Prepare Value matrix (V) from all preceding outputs.
-        # V shape: [num_sources, Batch, SeqLen, d_model]
+        # history is a list of N tensors, each [B, T, D].
+        # V shape: [N, B, T, D] where N = current layer index + 1 (num_sources).
         V = torch.stack(history)
         
         # 2. Normalize keys (K) to stabilize softmax attention.
+        # K shape: [N, B, T, D]. RMSNorm is applied across the D dimension.
         K = self.attn_res_norm(V)
         
         # 3. Compute depth-wise attention logits using learned query w_l.
+        # wl shape: [D]. Squeezed from Linear(D, 1) weight [1, D].
+        # einsum('d, n b t d -> n b t'): 
+        #   - Performs a dot product between the pseudo-query 'wl' and each source 
+        #     representation in 'K' across the model dimension 'd'.
+        #   - This produces a scalar logit for every token (t) in every batch (b) 
+        #     for every source layer (n).
+        # logits shape: [N, B, T].
         wl = self.attn_res_proj.weight.squeeze(0)
         logits = torch.einsum('d, n b t d -> n b t', wl, K)
         
         # 4. Compute Softmax Weights (alpha) across the depth dimension.
+        # Softmax is applied on dim=0 (the N dimension).
+        # This normalizes the importance of each preceding layer for each specific token.
+        # alpha shape: [N, B, T].
         alpha = F.softmax(logits, dim=0)
         
         # 5. Selective Aggregation (h_l).
-        # h_l = sum(alpha_i * v_i)
+        # hl = sum_{i=0}^{l-1} (alpha_i * v_i)
+        # einsum('n b t, n b t d -> b t d'):
+        #   - Multiplies the attention weight 'alpha' with the source values 'V'.
+        #   - Sums across the 'n' dimension (depth) to aggregate information.
+        #   - Result is a single hidden state representation for the current layer.
+        # hl shape: [B, T, D].
         hl = torch.einsum('n b t, n b t d -> b t d', alpha, V)
         
         # If this is the final aggregation layer, we return the hidden state 
@@ -113,6 +145,7 @@ class AttnResBlock(nn.Module):
             return hl
         
         # 6. Apply core transformation f_l (Attention & FFN).
+        # vl shape: [B, T, D].
         vl = self.layer(hl, attention_mask=attention_mask)
         
         # 7. Update history for subsequent layers.

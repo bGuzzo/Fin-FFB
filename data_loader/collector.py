@@ -129,12 +129,15 @@ def get_dataloader(
 
     # 1. Initialize Individual Datasets if not provided
     if datasets is None:
-        nyt_ds = NYTDataset(split="train")
+        # nyt_ds = NYTDataset(split="train")
         # edgar_ds = EDGARDataset(split="train")
-        datasets = [nyt_ds]
+        # datasets = [nyt_ds]
+        datasets = [MockDataset()]
+
 
     # 2. Combine into a unified training stream
     combined_ds = CombinedFinancialDataset(datasets)
+    # dataset = MockDataset()
 
     # 3. Initialize the Collector (replaces nested collate_fn)
     collector = FinancialDataCollector(

@@ -7,11 +7,11 @@
 model:
   # Model Dimensions
   vocab_size: 30000
-  d_model: 1024            # Large width for better feature extraction.
-  num_layers: 3            # Max depth for Medium variant.
-  num_heads: 16            # d_head = 64.
+  d_model: 768             # Moderate width for balanced performance.
+  num_layers: 3            # Fast/Shallow architecture.
+  num_heads: 12            # d_head = 64.
   dropout: 0.1
-  ffn_factor: 4            # d_ffn = 4096.
+  ffn_factor: 4            # d_ffn = 3072.
   
   # Initialization & Normalization
   initializer_range: 0.02
@@ -19,12 +19,12 @@ model:
 
 training:
   # Hardware & Efficiency
-  batch_size: 32
-  gradient_accumulation_steps: 4 # Effective batch size = 128. Reduces VRAM pressure.
+  batch_size: 48           # Adjusted for 768 width.
+  gradient_accumulation_steps: 4 # Effective batch size = 192.
   mixed_precision: "bf16"
   
   # Optimization
-  learning_rate: 3.0e-4
+  learning_rate: 4.0e-4    # Increased for smaller width.
   weight_decay: 0.01
   betas: [0.9, 0.98]
   eps: 1.0e-6

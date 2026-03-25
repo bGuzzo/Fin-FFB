@@ -1,0 +1,19 @@
+# Mock financial sentences for testing the training pipeline.
+# These will be used by the MockDataset class.
+
+sentences:
+  - "The Federal Reserve indicated that interest rates might remain stable for the next quarter."
+  - "Tech stocks saw a significant rally following the latest earnings reports."
+  - "Global markets reacted sharply to the unexpected shift in trade policy."
+  - "Inflationary pressures are beginning to ease as supply chains normalize."
+  - "The company's annual report highlighted a 15% increase in year-over-year revenue."
+  - "Venture capital investment in artificial intelligence reached record highs this year."
+  - "Central banks are closely monitoring employment data to guide future monetary policy."
+  - "Commodity prices fluctuated due to geopolitical tensions in major producing regions."
+  - "Retail sales outperformed expectations during the holiday season."
+  - "The bond market reflected growing investor confidence in a soft landing scenario."
+  - "Quarterly dividends were increased by several major financial institutions."
+  - "Currency exchange rates remained volatile amid shifting economic indicators."
+  - "The manufacturing sector reported its strongest growth in three years."
+  - "Analysts downgraded several banking stocks citing concerns over loan loss reserves."
+  - "The renewable energy sector continues to attract significant institutional capital."

@@ -8,10 +8,10 @@ transformations during batch collation.
 """
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
-from typing import List, Dict, Any
-from .datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset
+from typing import List, Dict, Any, Optional
+from .datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset, MockDataset
 
 
 class FinancialDataCollector:
@@ -82,7 +82,7 @@ class FinancialDataCollector:
         tokenized_batch = self.tokenizer(
             texts,
             padding="max_length",
-            truncation=True,
+            truncation=True, # Important, chunk the text if len(token) > max_length
             max_length=self.max_length,
             return_tensors="pt",
         )
@@ -105,12 +105,13 @@ def get_dataloader(
     mlm_probability: float = 0.15,
     tokenizer_name: str = "albert-base-v2",
     num_workers: int = 4,
+    datasets: Optional[List[Dataset]] = None,
 ) -> DataLoader:
     """
     Orchestrates the data loading pipeline for Fin-FFB training.
 
     This function:
-    1. Loads the NYT and EDGAR datasets using memory-mapping (low RAM).
+    1. Loads the provided datasets or defaults to NYTDataset.
     2. Combines them into a single stream.
     3. Initializes the FinancialDataCollector for JIT processing.
     4. Returns a DataLoader that yields batches of masked tokens.
@@ -121,14 +122,17 @@ def get_dataloader(
         mlm_probability: Percentage of tokens to mask for training.
         tokenizer_name: Name of the pre-trained tokenizer (default: albert-base-v2).
         num_workers: Number of subprocesses for data loading.
+        datasets: Optional list of Dataset objects. If None, defaults to [NYTDataset(split="train")].
     """
 
-    # 1. Initialize Individual Datasets (Memory-mapped via HF Datasets)
-    nyt_ds = NYTDataset(split="train")
-    # edgar_ds = EDGARDataset(split="train")
+    # 1. Initialize Individual Datasets if not provided
+    if datasets is None:
+        nyt_ds = NYTDataset(split="train")
+        # edgar_ds = EDGARDataset(split="train")
+        datasets = [nyt_ds]
 
     # 2. Combine into a unified training stream
-    combined_ds = CombinedFinancialDataset([nyt_ds])
+    combined_ds = CombinedFinancialDataset(datasets)
 
     # 3. Initialize the Collector (replaces nested collate_fn)
     collector = FinancialDataCollector(

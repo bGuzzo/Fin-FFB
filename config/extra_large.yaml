@@ -1,17 +1,18 @@
 # ==============================================================================
-# Fin-FFB Large (Fat) Configuration
+# Fin-FFB Extra Large (Ultra-Fat) Configuration
 # ------------------------------------------------------------------------------
-# Optimized for: High-end Consumer GPUs (16GB-24GB VRAM, e.g., RTX 3090/4090).
+# Optimized for: Multi-GPU setups or flagship GPUs (24GB+ VRAM, e.g., H100/A100).
+# Targeted Size: ~204 Million parameters.
 # ==============================================================================
 
 model:
   # Model Dimensions
   vocab_size: 30000
-  d_model: 1024            # Maximized width for high representational capacity.
-  num_layers: 3            # Keeps the model Fast (low latency) despite width.
-  num_heads: 16            # d_head = 64.
+  d_model: 2048            # Ultra-wide for maximum feature extraction.
+  num_layers: 2            # Extremely shallow for low-latency inference.
+  num_heads: 32            # d_head = 64.
   dropout: 0.1
-  ffn_factor: 4            # d_ffn = 4096.
+  ffn_factor: 4            # d_ffn = 8192.
   
   # Initialization & Normalization
   initializer_range: 0.02
@@ -19,12 +20,12 @@ model:
 
 training:
   # Hardware & Efficiency
-  batch_size: 32           # Adjusted for 1024 width.
-  gradient_accumulation_steps: 4 # Effective batch size = 128.
+  batch_size: 16           # Very high VRAM usage.
+  gradient_accumulation_steps: 16 # Effective batch size = 256.
   mixed_precision: "bf16"
   
   # Optimization
-  learning_rate: 3.0e-4    # Adjusted for the new model scale.
+  learning_rate: 1.5e-4    # Lower LR for massive width to prevent divergence.
   weight_decay: 0.01
   betas: [0.9, 0.98]
   eps: 1.0e-6
@@ -32,7 +33,7 @@ training:
   
   # Scheduler
   lr_scheduler_type: "cosine"
-  warmup_steps: 2000
+  warmup_steps: 3000       # Longer warmup for stability.
 
 dataset:
   # MLM Configuration

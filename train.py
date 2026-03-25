@@ -11,6 +11,7 @@ efficient on consumer hardware, supporting:
 """
 
 import argparse
+import gc
 import json
 import math
 import os
@@ -27,6 +28,7 @@ from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 
 from data_loader.collector import get_dataloader
+from data_loader.datasets_utils import MockDataset
 from model.fin_ffb import FinFFB
 from model.fin_ffb_mlm import FinFFBForMaskedLM
 
@@ -62,6 +64,20 @@ def get_device() -> torch.device:
         return torch.device("mps")
     else:
         return torch.device("cpu")
+
+
+def clear_cache(device: torch.device):
+    """
+    Clears the GPU/CPU cache and triggers Python garbage collection.
+
+    Args:
+        device: The current execution device.
+    """
+    gc.collect()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+    elif device.type == "mps":
+        torch.mps.empty_cache()
 
 
 def get_autocast_context(device: torch.device, dtype: torch.dtype, enabled: bool):
@@ -117,6 +133,9 @@ def main():
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
     )
+    parser.add_argument(
+        "--mock", action="store_true", help="Use mock dataset for testing"
+    )
     args = parser.parse_args()
 
     # Set seed for reproducibility
@@ -153,6 +172,12 @@ def main():
 
     # --- 3. Dataloader Initialization ---
     print("Initializing dataloader...")
+    
+    datasets = None
+    if args.mock:
+        print("Using MockDataset for training test bench.")
+        datasets = [MockDataset()]
+
     # The dataloader handles JIT tokenization and MLM masking to save disk/RAM
     dataloader = get_dataloader(
         batch_size=config["training"]["batch_size"],
@@ -160,6 +185,7 @@ def main():
         mlm_probability=config["dataset"]["mask_probability"],
         tokenizer_name="albert-base-v2",
         num_workers=4,
+        datasets=datasets,
     )
 
     # --- 4. Optimizer & Scheduler Setup ---
@@ -292,6 +318,9 @@ def main():
             else:
                 # Standard backward pass for bfloat16 or float32
                 loss.backward()
+
+            # Clear cache and garbage collect after backward pass to manage memory
+            clear_cache(device)
 
             accumulated_loss += loss.item()
 

@@ -9,8 +9,8 @@ model:
   vocab_size: 30000        # Standard for albert-base-v2 tokenizer.
   d_model: 256             # Hidden dimension size (Wide/Fat focus).
   num_layers: 1            # Number of AttnRes blocks (Fast/Shallow focus).
-  num_heads: 4             # Number of attention heads (d_head = 32).
-  dropout: 0.25             # Regularization to prevent overfitting.
+  num_heads: 4             # Number of attention heads (d_head = 64).
+  dropout: 0.1             # Unified dropout with other variants.
   ffn_factor: 4            # Multiplier for the hidden layer in FFN (d_ffn = 1024).
   
   # Initialization & Normalization
@@ -20,22 +20,22 @@ model:
 training:
   # Hardware & Efficiency
   batch_size: 16          # Number of samples processed per GPU step.
-  gradient_accumulation_steps: 256 # Number of steps to accumulate gradients (Total: 512).
+  gradient_accumulation_steps: 8 # Effective batch size = 128 (consistent with others).
   mixed_precision: "fp16"  # Use Float16 to save VRAM and speed up training on Apple Silicon.
   
   # Optimization (AdamW)
-  learning_rate: 1.0e-3    # Higher LR possible for smaller models.
-  weight_decay: 0.01       # L2 regularization applied only to non-bias/norm weights.
-  betas: [0.9, 0.98]       # AdamW momentum parameters; 0.98 is more stable for transformers.
-  eps: 1.0e-6              # Term added to denominator to improve numerical stability.
-  clip_grad_norm: 1.0      # Maximum norm for gradients to prevent "explosions".
+  learning_rate: 1.0e-3    # Higher LR for small models.
+  weight_decay: 0.01       # L2 regularization.
+  betas: [0.9, 0.98]       # AdamW momentum parameters.
+  eps: 1.0e-6              # Numerical stability.
+  clip_grad_norm: 1.0      # Gradient clipping.
   
   # Scheduler
-  lr_scheduler_type: "cosine" # Gradual LR decay for better convergence.
-  warmup_steps: 500        # Linear increase of LR at the start to stabilize training.
+  lr_scheduler_type: "cosine" # Gradual LR decay.
+  warmup_steps: 500        # Linear increase of LR at the start.
 
 dataset:
   # MLM Configuration
-  max_seq_len: 512         # Training window (ALiBi allows extrapolation beyond this).
-  mask_probability: 0.15   # Percentage of tokens to mask for MLM objective.
-  label_smoothing: 0.1     # Prevents overconfidence, improving generalization.
+  max_seq_len: 512         # Training window.
+  mask_probability: 0.15   # Percentage of tokens to mask.
+  label_smoothing: 0.1     # Prevents overconfidence.

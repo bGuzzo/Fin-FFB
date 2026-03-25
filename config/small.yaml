@@ -20,11 +20,11 @@ model:
 training:
   # Hardware & Efficiency
   batch_size: 64
-  gradient_accumulation_steps: 2 # Effective batch size = 128. Helps on 8GB VRAM.
-  mixed_precision: "bf16"  # BFloat16 is preferred if hardware supports it (RTX 30+).
+  gradient_accumulation_steps: 2 # Effective batch size = 128.
+  mixed_precision: "bf16"  # BFloat16 is preferred if hardware supports it.
   
   # Optimization
-  learning_rate: 5.0e-4
+  learning_rate: 5.0e-4    # Increased for smaller model.
   weight_decay: 0.01
   betas: [0.9, 0.98]
   eps: 1.0e-6
@@ -32,7 +32,7 @@ training:
   
   # Scheduler
   lr_scheduler_type: "cosine"
-  warmup_steps: 1000       # More steps for a larger model.
+  warmup_steps: 1000
 
 dataset:
   # MLM Configuration

@@ -21,7 +21,7 @@ training:
   # Hardware & Efficiency
   batch_size: 16          # Number of samples processed per GPU step.
   gradient_accumulation_steps: 8 # Effective batch size = 128 (consistent with others).
-  mixed_precision: "fp16"  # Use Float16 to save VRAM and speed up training on Apple Silicon.
+  mixed_precision: "bf16"  # Use Float16 to save VRAM and speed up training on Apple Silicon.
   
   # Optimization (AdamW)
   learning_rate: 1.0e-3    # Higher LR for small models.

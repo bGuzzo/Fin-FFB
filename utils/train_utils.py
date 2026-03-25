@@ -13,13 +13,20 @@ import time
 from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import yaml
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from transformers import get_cosine_schedule_with_warmup
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
+
+TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
 
 def load_config(config_name: str) -> Dict[str, Any]:
@@ -38,6 +45,8 @@ def load_config(config_name: str) -> Dict[str, Any]:
     config_path = Path(f"config/{config_name}.yaml")
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    LOGGER.info(f"Loading configuration from: {config_path}")
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -51,10 +60,14 @@ def get_device() -> torch.device:
                       otherwise 'cpu'.
     """
     if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    
+    LOGGER.info(f"Using device: {device}")
+    return device
 
 
 def setup_workspace(base_dir: str = "./dumps") -> Tuple[Path, Path]:
@@ -71,6 +84,8 @@ def setup_workspace(base_dir: str = "./dumps") -> Tuple[Path, Path]:
     training_dir = Path(base_dir) / "training"
     models_dir.mkdir(parents=True, exist_ok=True)
     training_dir.mkdir(parents=True, exist_ok=True)
+    
+    LOGGER.info(f"Workspace setup: models_dir={models_dir}, training_dir={training_dir}")
     return models_dir, training_dir
 
 
@@ -113,7 +128,12 @@ def get_autocast_context(
         try:
             return torch.autocast(device_type="mps", dtype=dtype, enabled=True)
         except (RuntimeError, TypeError):
+            LOGGER.exception(
+                f"Unable to get autocast context for {device}, falling back to nullcontext."
+            )
             return nullcontext()
+
+    LOGGER.warning(f"Unknown device type: {device.type}, falling back to nullcontext.")
     return nullcontext()
 
 
@@ -145,18 +165,25 @@ def initialize_optimizer_and_scheduler(
         betas=tuple(config["training"]["betas"]),
         eps=float(config["training"]["eps"]),
     )
+    LOGGER.info(
+        f"Initialized optimizer with learning rate: {config['training']['learning_rate']}"
+    )
 
     # Calculate total training steps
     grad_accum_steps = config["training"]["gradient_accumulation_steps"]
     steps_per_epoch = math.ceil(dataloader_len / grad_accum_steps)
     total_steps = steps_per_epoch * epochs
 
+    LOGGER.info(f"Total training steps: {total_steps} ({steps_per_epoch} steps/epoch)")
     scheduler = get_cosine_schedule_with_warmup(
         optimizer,
         num_warmup_steps=config["training"]["warmup_steps"],
         num_training_steps=total_steps,
     )
 
+    LOGGER.info(
+        f"Initialized scheduler, total steps: {total_steps}, warmup steps: {config['training']['warmup_steps']}"
+    )
     return optimizer, scheduler
 
 
@@ -175,7 +202,7 @@ def setup_mixed_precision(
     """
     mixed_precision = config["training"]["mixed_precision"]
     use_amp = mixed_precision in ["fp16", "bf16"]
-    dtype = torch.float32
+    dtype = torch.bfloat16 # Use bfloat16 as defualt
     scaler = None
 
     if not use_amp:
@@ -194,13 +221,20 @@ def setup_mixed_precision(
     elif device.type == "cpu":
         dtype = torch.bfloat16
     elif device.type == "mps":
-        dtype = torch.float16
+        # Using M4, use bf16!
+        dtype = torch.bfloat16
 
+    LOGGER.info(
+        f"Configured mixed precision: dtype={str(dtype)}, use_amp={use_amp}, scaler={str(scaler)} on device {device}"
+    )
     return dtype, scaler, use_amp
 
 
 def save_checkpoint(
-    state: Dict[str, Any], training_dir: Path, global_step: int
+    state: Dict[str, Any],
+    training_dir: Path,
+    global_step: int,
+    config_name: str
 ) -> None:
     """
     Persists a training checkpoint to disk.
@@ -209,15 +243,21 @@ def save_checkpoint(
         state: Dictionary containing training state (model, optimizer, etc.).
         training_dir: Path to the training artifacts directory.
         global_step: Current global optimization step.
+        config_name: Name of the configuration used.
     """
-    checkpoint_path = training_dir / f"checkpoint-{global_step}.pt"
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    checkpoint_path = (
+        training_dir / f"checkpoint_{config_name or ''}_{timestamp}_step_{global_step}.pt"
+    )
     torch.save(state, checkpoint_path)
+    LOGGER.info(f"Saved checkpoint to {checkpoint_path} for step {global_step}")
 
 
 def save_final_artifacts(
     model: torch.nn.Module,
     config: Dict[str, Any],
     models_dir: Path,
+    config_name: str
 ) -> None:
     """
     Saves the final model state and configuration files.
@@ -226,35 +266,45 @@ def save_final_artifacts(
         model: The trained model.
         config: Training configuration dictionary.
         models_dir: Path to the models directory.
+        config_name: Name of the configuration used.
     """
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    
     # Save standard PyTorch state dict
-    torch.save(model.state_dict(), models_dir / "fin_ffb_final.pt")
+    state_dict_path = models_dir / f"fin_ffb_{config_name or ''}_{timestamp}_final.pt"
+    torch.save(model.state_dict(), state_dict_path)
+    LOGGER.info(f"Saved final model state to {state_dict_path}")
 
     # Save config for reproducibility
-    with open(models_dir / "config.json", "w") as f:
+    config_save_path = models_dir / f"config_{config_name or ''}_{timestamp}.json"
+    with open(config_save_path, "w") as f:
         json.dump(config, f, indent=4)
+        LOGGER.info(f"Saved JSON config to {config_save_path}")
 
     # Attempt HuggingFace-style save
     try:
         if hasattr(model, "save_pretrained"):
-            model.save_pretrained(models_dir)
+            hf_save_path = models_dir / f"hf_{config_name or ''}_{timestamp}"
+            model.save_pretrained(hf_save_path)
+            LOGGER.info(f"Saved HuggingFace-style model to {hf_save_path}")
     except Exception as e:
-        print(f"Non-critical: HF save_pretrained skipped: {e}")
+        LOGGER.exception(f"Non-critical: HF save_pretrained skipped: {e}")
 
 
-def log_training_results(
-    results: Dict[str, Any], training_dir: Path
-) -> None:
+def log_training_results(results: Dict[str, Any], training_dir: Path, config_name: str) -> None:
     """
     Saves a comprehensive JSON log of the training session.
 
     Args:
         results: Dictionary containing training metrics and hardware info.
         training_dir: Path to the training artifacts directory.
+        config_name: Name of the configuration used.
     """
-    log_path = training_dir / "training_log.json"
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    log_path = training_dir / f"training_log_{config_name or ''}_{timestamp}.json"
     with open(log_path, "w") as f:
         json.dump(results, f, indent=4)
+    LOGGER.info(f"Training results logged to {log_path}")
 
 
 def _get_optimizer_grouped_parameters(
@@ -271,21 +321,22 @@ def _get_optimizer_grouped_parameters(
         List of parameter groups for the optimizer.
     """
     no_decay = ["bias", "rms_norm.weight"]
+    
+    decay_params = [
+        p for n, p in model.named_parameters() 
+        if not any(nd in n for nd in no_decay) and p.requires_grad
+    ]
+    no_decay_params = [
+        p for n, p in model.named_parameters() 
+        if any(nd in n for nd in no_decay) and p.requires_grad
+    ]
+    
+    LOGGER.info(
+        f"Optimizer groups: {len(decay_params)} params with weight_decay={weight_decay}, "
+        f"{len(no_decay_params)} params with weight_decay=0.0"
+    )
+    
     return [
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": weight_decay,
-        },
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
+        {"params": decay_params, "weight_decay": weight_decay},
+        {"params": no_decay_params, "weight_decay": 0.0},
     ]

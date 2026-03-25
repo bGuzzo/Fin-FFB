@@ -147,6 +147,7 @@ def main() -> None:
                 loss, _ = model(
                     input_ids=input_ids, attention_mask=attention_mask, labels=labels
                 )
+                # Normalize the loss so gradients scale correctly
                 loss = loss / grad_accum_steps
 
             if not math.isfinite(loss.item()):
@@ -186,7 +187,7 @@ def main() -> None:
                 # Metrics Reporting
                 throughput = total_samples / (time.time() - start_time)
                 epoch_iterator.set_postfix({
-                    "Loss": f"{accumulated_loss:.4f}",
+                    "Loss": f"{accumulated_loss:.8f}",
                     "LR": f"{scheduler.get_last_lr()[0]:.2e}",
                     "S/s": f"{throughput:.1f}"
                 })
@@ -200,13 +201,13 @@ def main() -> None:
                         "optimizer_state_dict": optimizer.state_dict(),
                         "scheduler_state_dict": scheduler.state_dict(),
                         "config": config,
-                    }, training_dir, global_step)
+                    }, training_dir, global_step, args.config)
 
     # --- 4. Finalization ---
     training_duration = time.time() - start_time
     print("\nTraining complete. Saving artifacts...")
     
-    save_final_artifacts(model, config, models_dir)
+    save_final_artifacts(model, config, models_dir, args.config)
 
     log_training_results({
         "timestamp": datetime.now().isoformat(),
@@ -218,9 +219,9 @@ def main() -> None:
             "final_loss": losses[-1] if losses else None,
         },
         "config": config,
-    }, training_dir)
+    }, training_dir, args.config)
 
-    print(f"Session complete. Logs: {training_dir}/training_log.json")
+    print(f"Session complete. Logs: {training_dir}")
 
 
 if __name__ == "__main__":

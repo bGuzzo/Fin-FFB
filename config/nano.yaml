@@ -15,7 +15,6 @@ model:
   
   # Initialization & Normalization
   initializer_range: 0.02  # StdDev for weight initialization (standard for BERT).
-  norm_eps: 1.0e-5         # Epsilon for RMSNorm to avoid division by zero.
 
 training:
   # Hardware & Efficiency
@@ -31,11 +30,9 @@ training:
   clip_grad_norm: 1.0      # Gradient clipping.
   
   # Scheduler
-  lr_scheduler_type: "cosine" # Gradual LR decay.
   warmup_steps: 50        # Linear increase of LR at the start. (500)
 
 dataset:
   # MLM Configuration
   max_seq_len: 512         # Training window.
   mask_probability: 0.15   # Percentage of tokens to mask.
-  label_smoothing: 0.1     # Prevents overconfidence.

@@ -56,7 +56,7 @@ def _parse_args() -> argparse.Namespace:
         "--epochs", type=int, default=1, help="Number of training epochs"
     )
     parser.add_argument(
-        "--save_steps", type=int, default=10, help="Save checkpoint every X steps"
+        "--save_steps", type=int, default=100, help="Save checkpoint every X steps"
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"

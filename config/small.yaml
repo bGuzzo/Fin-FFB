@@ -15,7 +15,6 @@ model:
   
   # Initialization & Normalization
   initializer_range: 0.02
-  norm_eps: 1.0e-5
 
 training:
   # Hardware & Efficiency
@@ -31,11 +30,9 @@ training:
   clip_grad_norm: 1.0
   
   # Scheduler
-  lr_scheduler_type: "cosine"
   warmup_steps: 1000
 
 dataset:
   # MLM Configuration
   max_seq_len: 512
   mask_probability: 0.15
-  label_smoothing: 0.1

@@ -15,12 +15,11 @@ model:
   
   # Initialization & Normalization
   initializer_range: 0.02
-  norm_eps: 1.0e-5
 
 training:
   # Hardware & Efficiency
-  batch_size: 48           # Adjusted for 768 width.
-  gradient_accumulation_steps: 4 # Effective batch size = 192.
+  batch_size: 4           # Adjusted for 768 width.
+  gradient_accumulation_steps: 2 # Effective batch size = 192.
   mixed_precision: "bf16"
   
   # Optimization
@@ -31,11 +30,9 @@ training:
   clip_grad_norm: 1.0
   
   # Scheduler
-  lr_scheduler_type: "cosine"
-  warmup_steps: 2000
+  warmup_steps: 30
 
 dataset:
   # MLM Configuration
   max_seq_len: 512
   mask_probability: 0.15
-  label_smoothing: 0.1

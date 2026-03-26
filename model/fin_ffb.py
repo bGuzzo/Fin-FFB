@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple, Union
 from .attn_res_block import AttnResBlock
 from huggingface_hub import PyTorchModelHubMixin
 import torch.nn.functional as F
+import logging
 
 class FinFFB(nn.Module, PyTorchModelHubMixin):
     """
@@ -52,7 +53,7 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         self.padding_idx = padding_idx
 
         self.info_str : str = f"Fin-FBB Version {VERSION}. d_model={d_model}, num_layers={num_layers}, num_heads={num_heads}, dropout(train)={dropout}, ffn_factor={ffn_factor}"
-        print(self.info_str)
+        logging.info(self.info_str)
         
         # Token Embeddings
         self.embeddings = nn.Embedding(

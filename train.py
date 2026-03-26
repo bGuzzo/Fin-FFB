@@ -8,6 +8,7 @@ mixed precision, and lifecycle management.
 """
 
 import argparse
+import logging
 import math
 import time
 from datetime import datetime
@@ -83,8 +84,8 @@ def main() -> None:
     device = get_device()
     models_dir, training_dir = setup_workspace()
     
-    print(f"Using device: {device}")
-    print(f"Initializing model using '{args.config}' config...")
+    logging.info(f"Using device: {device}")
+    logging.info(f"Initializing model using '{args.config}' config...")
 
     # --- 2. Component Initialization ---
     encoder = FinFFB(
@@ -117,7 +118,7 @@ def main() -> None:
     grad_accum_steps = config["training"]["gradient_accumulation_steps"]
     total_steps = math.ceil(len(dataloader) / grad_accum_steps) * args.epochs
     
-    print(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
+    logging.info(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
     
     start_time = time.time()
     global_step = 0
@@ -206,7 +207,7 @@ def main() -> None:
 
     # --- 4. Finalization ---
     training_duration = time.time() - start_time
-    print("\nTraining complete. Saving artifacts...")
+    logging.info("\nTraining complete. Saving artifacts...")
     
     save_final_artifacts(model, config, models_dir, args.config)
 
@@ -225,7 +226,7 @@ def main() -> None:
     # Generate loss visualization
     plot_loss_curve(losses, training_dir, args.config)
 
-    print(f"Session complete. Logs: {training_dir}")
+    logging.info(f"Session complete. Logs: {training_dir}")
 
 
 if __name__ == "__main__":

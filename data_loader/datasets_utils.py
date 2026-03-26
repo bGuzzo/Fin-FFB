@@ -111,9 +111,9 @@ class CombinedFinancialDataset(Dataset):
 if __name__ == "__main__":
     # nyt_ds = NYTDataset(split="all")
     
-    # print(len(nyt_ds))
-    # print(nyt_ds[0])
+    # logging.info(len(nyt_ds))
+    # logging.info(nyt_ds[0])
 
     edgar_ds = EDGARDataset()
-    print(len(edgar_ds))
-    print(edgar_ds[0])
+    logging.info(len(edgar_ds))
+    logging.info(edgar_ds[0])

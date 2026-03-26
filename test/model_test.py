@@ -14,9 +14,11 @@ import torch.nn as nn
 from model.attn_core import AttentionLayer
 from model.attn_res_block import AttnResBlock
 
+import logging
+
 
 def test_attention_layer():
-    print("Testing AttentionLayer...")
+    logging.info("Testing AttentionLayer...")
     batch_size = 2
     seq_len = 16
     d_model = 128
@@ -44,11 +46,11 @@ def test_attention_layer():
         d_model,
     ), f"Expected shape {(batch_size, seq_len, d_model)}, got {output.shape}"
 
-    print("AttentionLayer dimensionality test passed.")
+    logging.info("AttentionLayer dimensionality test passed.")
 
 
 def test_attn_res_block():
-    print("\nTesting AttnResBlock (Full Attention Residuals)...")
+    logging.info("Testing AttnResBlock (Full Attention Residuals)...")
     batch_size = 2
     seq_len = 16
     d_model = 128
@@ -76,7 +78,7 @@ def test_attn_res_block():
     assert torch.equal(history[0], embedding)
     assert torch.equal(history[1], v0)
 
-    print("Block 0 (First Layer) tests passed.")
+    logging.info("Block 0 (First Layer) tests passed.")
 
     # 2. Initialize Second Block (Layer 1)
     # This layer should attend over [embedding, v0].
@@ -89,7 +91,7 @@ def test_attn_res_block():
     assert v1.shape == (batch_size, seq_len, d_model)
     assert len(history) == 3, "History should contain [embedding, v0, v1]"
 
-    print("Block 1 (Second Layer) tests passed.")
+    logging.info("Block 1 (Second Layer) tests passed.")
 
     # 3. Test Selective Aggregation Logic
     # Verify that the pseudo-query projection (wl) correctly produces
@@ -102,7 +104,7 @@ def test_attn_res_block():
         assert vi.shape == (batch_size, seq_len, d_model)
         assert len(history) == i + 2
 
-    print(f"Stack of 5 layers passed. History size: {len(history)}")
+    logging.info(f"Stack of 5 layers passed. History size: {len(history)}")
 
     # 4. Test Final Output Layer Aggregation
     # The final layer should aggregate the full history and return a single tensor.
@@ -127,11 +129,11 @@ def test_attn_res_block():
         h_out, expected_out, atol=1e-5
     ), "Final layer aggregation should be uniform average at initialization."
 
-    print("Final Output Layer (Aggregation Only) tests passed.")
+    logging.info("Final Output Layer (Aggregation Only) tests passed.")
 
 
 def test_initialization_state():
-    print("\nTesting Weight Initialization...")
+    logging.info("Testing Weight Initialization...")
     d_model = 64
     block = AttnResBlock(0, d_model, 4, 0.0)
 
@@ -139,11 +141,11 @@ def test_initialization_state():
     assert torch.all(
         block.attn_res_proj.weight == 0
     ), "Pseudo-query wl must be initialized to zero."
-    print("Initialization check passed.")
+    logging.info("Initialization check passed.")
 
 
 def test_fin_ffb_model():
-    print("\nTesting FinFFB Model...")
+    logging.info("Testing FinFFB Model...")
     vocab_size = 1000
     batch_size = 2
     seq_len = 32
@@ -182,11 +184,11 @@ def test_fin_ffb_model():
         len(history) == num_layers + 1
     ), f"Expected history length {num_layers + 1}, got {len(history)}"
 
-    print("FinFFB model tests passed.")
+    logging.info("FinFFB model tests passed.")
 
 
 def test_fin_ffb_for_masked_lm():
-    print("\nTesting FinFFBForMaskedLM...")
+    logging.info("Testing FinFFBForMaskedLM...")
     vocab_size = 1000
     batch_size = 2
     seq_len = 32
@@ -229,7 +231,7 @@ def test_fin_ffb_for_masked_lm():
         model.mlm_head.decoder.weight, encoder.embeddings.weight
     ), "Weights of embeddings and MLM decoder should be tied."
 
-    print("FinFFBForMaskedLM model tests passed.")
+    logging.info("FinFFBForMaskedLM model tests passed.")
 
 
 if __name__ == "__main__":
@@ -242,9 +244,9 @@ if __name__ == "__main__":
         test_initialization_state()
         test_fin_ffb_model()
         test_fin_ffb_for_masked_lm()
-        print("\nAll tests completed successfully.")
+        logging.info("All tests completed successfully.")
     except Exception as e:
-        print(f"\nTest failed with error: {e}")
+        logging.info(f"Test failed with error: {e}")
         import traceback
 
         traceback.print_exc()

@@ -9,47 +9,49 @@ from data_loader.datasets_utils import NYTDataset, EDGARDataset, CombinedFinanci
 from data_loader.collector import FinancialDataCollector, get_dataloader
 import sys
 
+import logging
+
 def test_nyt_dataset():
-    print("\n--- Testing NYTDataset ---")
+    logging.info("\n--- Testing NYTDataset ---")
     try:
         dataset = NYTDataset(split="train")
-        print(f"Dataset successfully loaded. Length: {len(dataset)}")
+        logging.info(f"Dataset successfully loaded. Length: {len(dataset)}")
         
         # Test first few items
         for i in range(min(2, len(dataset))):
             item = dataset[i]
-            print(f"Item {i} (Index {i}):")
-            print(f"  Keys: {list(item.keys())}")
+            logging.info(f"Item {i} (Index {i}):")
+            logging.info(f"  Keys: {list(item.keys())}")
             text_preview = item['text'].replace('\n', ' ')
-            print(f"  Text preview (first 150 chars): {text_preview[:150]}...")
+            logging.info(f"  Text preview (first 150 chars): {text_preview[:150]}...")
             assert "text" in item
             assert isinstance(item["text"], str)
             assert len(item["text"]) > 0
     except Exception as e:
-        print(f"NYTDataset test failed or skipped: {e}")
+        logging.info(f"NYTDataset test failed or skipped: {e}")
 
 def test_edgar_dataset():
-    print("\n--- Testing EDGARDataset ---")
+    logging.info("\n--- Testing EDGARDataset ---")
     try:
         # Note: EDGAR corpus 'full' config can be large.
         dataset = EDGARDataset(split="train")
-        print(f"Dataset successfully loaded. Length: {len(dataset)}")
+        logging.info(f"Dataset successfully loaded. Length: {len(dataset)}")
         
         for i in range(min(2, len(dataset))):
             item = dataset[i]
-            print(f"Item {i} (Index {i}):")
+            logging.info(f"Item {i} (Index {i}):")
             # EDGAR items are usually much longer
             text_preview = item['text'].replace('\n', ' ')
-            print(f"  Text preview (first 150 chars): {text_preview[:150]}...")
-            print(f"  Total text length: {len(item['text'])} chars")
+            logging.info(f"  Text preview (first 150 chars): {text_preview[:150]}...")
+            logging.info(f"  Total text length: {len(item['text'])} chars")
             assert "text" in item
             assert isinstance(item["text"], str)
     except Exception as e:
-        print(f"EDGARDataset test failed or skipped: {e}")
-        print("Note: This might be due to dataset size or connection issues.")
+        logging.info(f"EDGARDataset test failed or skipped: {e}")
+        logging.info("Note: This might be due to dataset size or connection issues.")
 
 def test_combined_dataset():
-    print("\n--- Testing CombinedFinancialDataset ---")
+    logging.info("\n--- Testing CombinedFinancialDataset ---")
     try:
         nyt = NYTDataset(split="train")
         edgar = EDGARDataset(split="train")
@@ -57,28 +59,28 @@ def test_combined_dataset():
         
         nyt_len = len(nyt)
         edgar_len = len(edgar)
-        print(f"NYT items: {nyt_len}")
-        print(f"EDGAR items: {edgar_len}")
-        print(f"Combined total: {len(combined)}")
+        logging.info(f"NYT items: {nyt_len}")
+        logging.info(f"EDGAR items: {edgar_len}")
+        logging.info(f"Combined total: {len(combined)}")
         
         assert len(combined) == nyt_len + edgar_len
         
         # Test boundary: last item of NYT
-        print(f"Testing NYT boundary (Index {nyt_len - 1})...")
+        logging.info(f"Testing NYT boundary (Index {nyt_len - 1})...")
         item_nyt_last = combined[nyt_len - 1]
         assert item_nyt_last is not None
         
         # Test boundary: first item of EDGAR
-        print(f"Testing EDGAR boundary (Index {nyt_len})...")
+        logging.info(f"Testing EDGAR boundary (Index {nyt_len})...")
         item_edgar_first = combined[nyt_len]
         assert item_edgar_first is not None
         
-        print("Boundary tests passed.")
+        logging.info("Boundary tests passed.")
     except Exception as e:
-        print(f"CombinedFinancialDataset test failed: {e}")
+        logging.info(f"CombinedFinancialDataset test failed: {e}")
 
 def test_collector():
-    print("\n--- Testing FinancialDataCollector ---")
+    logging.info("\n--- Testing FinancialDataCollector ---")
     # Use a small max_length for testing speed
     max_len = 128
     mlm_prob = 0.15
@@ -96,10 +98,10 @@ def test_collector():
     
     batch = collector(examples)
     
-    print(f"Batch keys: {list(batch.keys())}")
-    print(f"input_ids shape: {batch['input_ids'].shape}")
-    print(f"attention_mask shape: {batch['attention_mask'].shape}")
-    print(f"labels shape: {batch['labels'].shape}")
+    logging.info(f"Batch keys: {list(batch.keys())}")
+    logging.info(f"input_ids shape: {batch['input_ids'].shape}")
+    logging.info(f"attention_mask shape: {batch['attention_mask'].shape}")
+    logging.info(f"labels shape: {batch['labels'].shape}")
     
     assert batch['input_ids'].shape == (3, max_len)
     assert batch['labels'].shape == (3, max_len)
@@ -109,28 +111,28 @@ def test_collector():
     masked_mask = batch['labels'] != -100
     num_masked = masked_mask.sum().item()
     total_tokens = 3 * max_len
-    print(f"Actual masking rate in this batch: {num_masked/total_tokens:.2%} ({num_masked} tokens)")
+    logging.info(f"Actual masking rate in this batch: {num_masked/total_tokens:.2%} ({num_masked} tokens)")
     
     # Analyze masked tokens
     tokenizer = collector.tokenizer
     first_example_ids = batch['input_ids'][0]
     first_example_labels = batch['labels'][0]
     
-    print("\nSample token analysis (First Example):")
+    logging.info("\nSample token analysis (First Example):")
     decoded_input = tokenizer.decode(first_example_ids)
-    print(f"  Decoded Input (with [MASK]): {decoded_input[:150]}...")
+    logging.info(f"  Decoded Input (with [MASK]): {decoded_input[:150]}...")
     
     # Show which tokens were actually masked
     masked_indices = torch.where(first_example_labels != -100)[0]
-    print(f"  Masked indices: {masked_indices.tolist()}")
+    logging.info(f"  Masked indices: {masked_indices.tolist()}")
     if len(masked_indices) > 0:
         idx = masked_indices[0].item()
         original_token = tokenizer.decode([first_example_labels[idx].item()])
         masked_token = tokenizer.decode([first_example_ids[idx].item()])
-        print(f"  Example Mask: Original='{original_token}', In Batch='{masked_token}' (at index {idx})")
+        logging.info(f"  Example Mask: Original='{original_token}', In Batch='{masked_token}' (at index {idx})")
 
 def test_dataloader_integration():
-    print("\n--- Testing get_dataloader Integration ---")
+    logging.info("\n--- Testing get_dataloader Integration ---")
     try:
         # Using 0 workers for stable test output and 128 max_length for speed
         dataloader = get_dataloader(
@@ -140,14 +142,14 @@ def test_dataloader_integration():
             num_workers=0
         )
         
-        print("DataLoader initialized. Fetching one batch...")
+        logging.info("DataLoader initialized. Fetching one batch...")
         batch = next(iter(dataloader))
         
-        print(f"Batch received. input_ids shape: {batch['input_ids'].shape}")
+        logging.info(f"Batch received. input_ids shape: {batch['input_ids'].shape}")
         assert batch['input_ids'].shape == (2, 128)
-        print("Integration test passed.")
+        logging.info("Integration test passed.")
     except Exception as e:
-        print(f"DataLoader integration test failed: {e}")
+        logging.info(f"DataLoader integration test failed: {e}")
 
 if __name__ == "__main__":
     test_nyt_dataset()
@@ -155,4 +157,4 @@ if __name__ == "__main__":
     test_combined_dataset()
     test_collector()
     test_dataloader_integration()
-    print("\nAll data loader tests completed.")
+    logging.info("\nAll data loader tests completed.")

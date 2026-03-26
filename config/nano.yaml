@@ -7,9 +7,9 @@
 model:
   # Model Dimensions
   vocab_size: 30000        # Standard for albert-base-v2 tokenizer.
-  d_model: 256             # Hidden dimension size (Wide/Fat focus).
+  d_model: 128             # Hidden dimension size (Wide/Fat focus). (256)
   num_layers: 1            # Number of AttnRes blocks (Fast/Shallow focus).
-  num_heads: 4             # Number of attention heads (d_head = 64).
+  num_heads: 2             # Number of attention heads (d_head = 64).
   dropout: 0.1             # Unified dropout with other variants.
   ffn_factor: 4            # Multiplier for the hidden layer in FFN (d_ffn = 1024).
   
@@ -19,8 +19,8 @@ model:
 
 training:
   # Hardware & Efficiency
-  batch_size: 16          # Number of samples processed per GPU step.
-  gradient_accumulation_steps: 8 # Effective batch size = 128 (consistent with others).
+  batch_size: 2          # Number of samples processed per GPU step.
+  gradient_accumulation_steps: 5 # Effective batch size = 128 (consistent with others).
   mixed_precision: "bf16"  # Use Float16 to save VRAM and speed up training on Apple Silicon.
   
   # Optimization (AdamW)
@@ -32,7 +32,7 @@ training:
   
   # Scheduler
   lr_scheduler_type: "cosine" # Gradual LR decay.
-  warmup_steps: 500        # Linear increase of LR at the start.
+  warmup_steps: 50        # Linear increase of LR at the start. (500)
 
 dataset:
   # MLM Configuration

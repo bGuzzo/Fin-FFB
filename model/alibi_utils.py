@@ -12,6 +12,7 @@ to extrapolate to sequence lengths longer than those seen during training.
 
 import torch
 from typing import List, Dict, Tuple
+import logging
 
 # Global cache for ALiBi bias matrices: (seq_len, num_heads, device, dtype) -> bias_tensor
 _ALIBI_CACHE: Dict[Tuple[int, int, torch.device, torch.dtype], torch.Tensor] = {}
@@ -77,4 +78,4 @@ def generate_bidirectional_alibi_bias(
 
 # Test only
 if __name__ == "__main__":
-    print(get_slopes(32))
+    logging.info(get_slopes(32))

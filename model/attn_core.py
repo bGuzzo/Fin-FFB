@@ -54,8 +54,7 @@ class AttentionLayer(nn.Module):
         self.qkv_proj = nn.Linear(d_model, 3 * d_model)
 
         # FFN modules
-        self.ffn_linear_up_1 = nn.Linear(d_model, self.d_ffn)
-        self.ffn_linear_up_2 = nn.Linear(d_model, self.d_ffn)
+        self.ffn_linear_up = nn.Linear(d_model, self.d_ffn * 2)
         self.ffn_linear_dw = nn.Linear(self.d_ffn, d_model)
 
         # Gating Projection (G1), following gated attention architectures
@@ -75,6 +74,21 @@ class AttentionLayer(nn.Module):
     def _compute_attention(
         self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """"
+        Compute Gated Scaled Dot-Product Attention.
+        Gating Paper Ref: 
+
+        Note: I don't use torch.nn.functional.scaled_dot_product_attention, it not optimized on M4 mac (which I'm using).
+
+        Args:
+            x: Input tensor [batch, seq_len, d_model].
+            attention_mask: Optional mask for attention scores.
+        
+        Returns:
+            torch.Tensor: Attention output [batch, seq_len, d_model].
+
+        """
+
         batch_size, seq_len, _ = x.shape
 
         # Fused QKV projection
@@ -126,8 +140,9 @@ class AttentionLayer(nn.Module):
         Compute SwiGLU FFN (as used in Llama architectures).
         Ref: https://arxiv.org/abs/2302.13971
         """
-        x_in_proj_1 = self.ffn_linear_up_1(x)
-        x_in_proj_2 = self.ffn_linear_up_2(x)
+        x_in_proj = self.ffn_linear_up(x)
+        x_in_proj_1, x_in_proj_2 = x_in_proj.chunk(2, dim=-1)
+
 
         # SwiGLU: Swish(xW) * xV
         swish = x_in_proj_1 * torch.sigmoid(x_in_proj_1)

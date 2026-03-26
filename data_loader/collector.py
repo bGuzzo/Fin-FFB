@@ -164,11 +164,11 @@ if __name__ == "__main__":
     dataloader = get_dataloader()
     batch = next(iter(dataloader))
     
-    print(batch.keys())
-    print(batch["input_ids"].shape)
-    print(batch["attention_mask"].shape)
-    print(batch["labels"].shape)
+    logging.info(batch.keys())
+    logging.info(batch["input_ids"].shape)
+    logging.info(batch["attention_mask"].shape)
+    logging.info(batch["labels"].shape)
 
-    print(batch["input_ids"])
-    print(batch["attention_mask"])
-    print(batch["labels"])
+    logging.info(batch["input_ids"])
+    logging.info(batch["attention_mask"])
+    logging.info(batch["labels"])

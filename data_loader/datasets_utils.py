@@ -3,6 +3,8 @@ import yaml
 from torch.utils.data import Dataset
 from datasets import load_dataset, load_from_disk
 from typing import Optional, List, Dict
+import pandas as pd
+import logging
 
 
 class MockDataset(Dataset):
@@ -22,68 +24,47 @@ class MockDataset(Dataset):
     def __getitem__(self, idx):
         return {"text": self.sentences[idx]}
 
-
+NYT_PRQT_FILE = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/nyt_100y_05m_ready.parquet"
 class NYTDataset(Dataset):
     """
     Dataset for New York Times 100 Years of News Headlines.
-    Concatenates 'headline' and 'abstract'.
+    Read as pandas DF.
     """
 
-    def __init__(self, split: str = "all"):
-        self.ds = load_dataset(
-            # "bguzzo2k/nyt_100y_news_headlines", 
-            "/Volumes/NVME_EXT/Datasets/nyt_100y_news_headlines",
-            split=split, streaming=False
-        )
+    def __init__(self, prqt_file: str = NYT_PRQT_FILE):
+        logging.info(f"Loading NYT dataset from {prqt_file}")
+        self.df: pd.DataFrame = pd.read_parquet(prqt_file)
+        logging.info(f"Loaded {len(self.df)} rows")
 
     def __len__(self):
-        return len(self.ds)
+        return len(self.df)
 
-    def __getitem__(self, idx):
-        item = self.ds[idx]
-        headline = item.get("headline", "") or ""
-        abstract = item.get("abstract", "") or ""
-        # Combine headline and abstract for context
-        text = f"{headline}. {abstract}"
-        return {"text": text}
+    # TODO fix it to be string only
+    def __getitem__(self, idx) -> Dict[str, str]:
+        item = self.df.iloc[idx]
+        return {"text": item["text"]}
 
-
+EDGAR_PRQT_FILE = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/edgar_corp_05m_ready.parquet"
 class EDGARDataset(Dataset):
     """
     Dataset for EDGAR-CORPUS annual reports.
     Concatenates available sections (1-15).
+    Read as pandas DF.
     """
 
-    def __init__(self, split: str = "all"):
-        # Loading 'full' config for EDGAR
-        self.ds = load_dataset(
-            # "eloukas/edgar-corpus", 
-            "/Volumes/NVME_EXT/Datasets/eloukas_edgar-corpus",
-            # config="full", 
-            split=split, streaming=False
-        )
-        self.sections = [f"section_{i}" for i in range(1, 16)]
-        # Add sub-sections commonly found
-        self.sections.extend(
-            ["section_1A", "section_1B", "section_7A", "section_9A", "section_9B"]
-        )
+    def __init__(self, prqt_file: str = EDGAR_PRQT_FILE):
+        logging.info(f"Loading EDGAR dataset from {prqt_file}")
+        self.df: pd.DataFrame = pd.read_parquet(prqt_file)
+        logging.info(f"Loaded {len(self.df)} rows")
 
     def __len__(self):
-        return len(self.ds)
+        return len(self.df)
 
-    def __getitem__(self, idx):
-        item = self.ds[idx]
-        texts = []
-        for sec in self.sections:
-            content = item.get(sec, "")
-            if content and isinstance(content, str):
-                texts.append(content)
+    def __getitem__(self, idx) -> Dict[str, str]:
+        item = self.df.iloc[idx]
+        return {"text": item["text"]}
 
-        # Join sections with newlines
-        full_text = "\n".join(texts)
-        return {"text": full_text}
-
-
+# Revise to apply shaffle
 class CombinedFinancialDataset(Dataset):
     """
     A simple wrapper to combine multiple datasets.
@@ -107,13 +88,16 @@ class CombinedFinancialDataset(Dataset):
             idx -= length
         raise IndexError
 
+
 # Test only
 if __name__ == "__main__":
-    # nyt_ds = NYTDataset(split="all")
-    
-    # logging.info(len(nyt_ds))
-    # logging.info(nyt_ds[0])
+    nyt_ds = NYTDataset()
 
-    edgar_ds = EDGARDataset()
-    logging.info(len(edgar_ds))
-    logging.info(edgar_ds[0])
+    logging.info(len(nyt_ds))
+    logging.info(nyt_ds[0])
+
+    # edgar_ds = EDGARDataset()
+    # logging.info(len(edgar_ds))
+    # logging.info(edgar_ds[0])
+
+

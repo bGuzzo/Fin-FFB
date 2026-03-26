@@ -36,6 +36,7 @@ from utils.train_utils import (
     setup_mixed_precision,
     setup_workspace,
 )
+from data_loader.datasets_utils import NYTDataset, EDGARDataset
 
 
 def _parse_args() -> argparse.Namespace:
@@ -107,7 +108,7 @@ def main() -> None:
     # Initialize weights according to standards
     initialize_weights(model, config)
 
-    datasets = [MockDataset()] if args.mock else None
+    datasets = [MockDataset()] if args.mock else [EDGARDataset()]
     dataloader = get_dataloader(
         batch_size=config["training"]["batch_size"],
         max_length=config["dataset"]["max_seq_len"],

@@ -19,7 +19,7 @@ model:
 training:
   # Hardware & Efficiency
   batch_size: 4           # Adjusted for 1024 width.
-  gradient_accumulation_steps: 8 # Effective batch size = 128.
+  gradient_accumulation_steps: 8 # Effective batch size = 32.
   mixed_precision: "bf16"
   
   # Optimization
@@ -34,5 +34,5 @@ training:
 
 dataset:
   # MLM Configuration
-  max_seq_len: 128 # Test only TOBE removed
+  max_seq_len: 1024 # Test only TOBE removed
   mask_probability: 0.3 # 0.15 as default

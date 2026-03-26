@@ -208,3 +208,13 @@ __marimo__/
 
 # Dumps
 dumps
+
+# Parquet data
+data/
+
+# MAC
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VSCode

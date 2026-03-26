@@ -18,8 +18,8 @@ model:
 
 training:
   # Hardware & Efficiency
-  batch_size: 4           # Adjusted for 768 width.
-  gradient_accumulation_steps: 2 # Effective batch size = 192.
+  batch_size: 16           # Adjusted for 768 width.
+  gradient_accumulation_steps: 16 # Effective batch size = 192.
   mixed_precision: "bf16"
   
   # Optimization
@@ -30,7 +30,7 @@ training:
   clip_grad_norm: 1.0
   
   # Scheduler
-  warmup_steps: 30
+  warmup_steps_perc: 0.1   # Linear increase of LR at the start (10% of total steps).
 
 dataset:
   # MLM Configuration

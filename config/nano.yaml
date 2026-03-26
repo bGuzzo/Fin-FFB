@@ -30,7 +30,7 @@ training:
   clip_grad_norm: 1.0      # Gradient clipping.
   
   # Scheduler
-  warmup_steps: 50        # Linear increase of LR at the start. (500)
+  warmup_steps_perc: 0.1   # Linear increase of LR at the start (10% of total steps).
 
 dataset:
   # MLM Configuration

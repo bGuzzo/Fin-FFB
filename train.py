@@ -56,7 +56,7 @@ def _parse_args() -> argparse.Namespace:
         "--epochs", type=int, default=1, help="Number of training epochs"
     )
     parser.add_argument(
-        "--save_steps", type=int, default=100, help="Save checkpoint every X steps"
+        "--save_steps", type=int, default=1000, help="Save checkpoint every X steps"
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
@@ -141,7 +141,7 @@ def main() -> None:
     logging.info(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
     
     start_time = time.time()
-    accumulated_loss = 0.0
+    # accumulated_loss = 0.0
     losses = []
     total_samples = 0
 
@@ -181,7 +181,7 @@ def main() -> None:
                 loss = loss / grad_accum_steps
 
             if not math.isfinite(loss.item()):
-                tqdm.write(f"\nWarning: Non-finite loss at step {step}. Skipping...")
+                tqdm.write(f"Warning: Non-finite loss at step {step}. Skipping...")
                 optimizer.zero_grad(set_to_none=True)
                 continue
 
@@ -192,7 +192,7 @@ def main() -> None:
                 loss.backward()
 
             clear_memory_cache(device)
-            accumulated_loss += loss.item()
+            # accumulated_loss += loss.item()
 
             # Optimization Step
             if (step + 1) % grad_accum_steps == 0 or (step + 1) == len(dataloader):
@@ -212,16 +212,18 @@ def main() -> None:
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 global_step += 1
-                losses.append(accumulated_loss)
+                # losses.append(accumulated_loss)
+                losses.append(loss.item())
+
 
                 # Metrics Reporting
                 throughput = total_samples / (time.time() - start_time)
                 epoch_iterator.set_postfix({
-                    "Loss": f"{accumulated_loss:.8f}",
+                    "Loss": f"{loss.item():.8f}", # Show last loss (not the sum accumulated)
                     "LR": f"{scheduler.get_last_lr()[0]:.2e}",
                     "S/s": f"{throughput:.1f}"
                 })
-                accumulated_loss = 0.0
+                # accumulated_loss = 0.0
 
                 # Checkpointing
                 if global_step % args.save_steps == 0:
@@ -232,10 +234,13 @@ def main() -> None:
                         "scheduler_state_dict": scheduler.state_dict(),
                         "config": config,
                     }, training_dir, global_step, args.config)
+            # End Optimization Step
+        # End Dataset Loop
+    # End Epoch loop
 
     # --- 4. Finalization ---
     training_duration = time.time() - start_time
-    logging.info("\nTraining complete. Saving artifacts...")
+    logging.info("Training complete. Saving artifacts...")
     
     save_final_artifacts(model, config, models_dir, args.config)
 

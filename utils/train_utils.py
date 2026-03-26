@@ -212,15 +212,19 @@ def initialize_optimizer_and_scheduler(
     steps_per_epoch = math.ceil(dataloader_len / grad_accum_steps)
     total_steps = steps_per_epoch * epochs
 
+    # Calculate warmup steps as a percentage of total steps
+    warmup_steps_perc = config["training"].get("warmup_steps_perc", 0.1)
+    num_warmup_steps = int(total_steps * warmup_steps_perc)
+
     logging.info(f"Total training steps: {total_steps} ({steps_per_epoch} steps/epoch)")
     scheduler = get_cosine_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=config["training"]["warmup_steps"],
+        num_warmup_steps=num_warmup_steps,
         num_training_steps=total_steps,
     )
 
     logging.info(
-        f"Initialized scheduler, total steps: {total_steps}, warmup steps: {config['training']['warmup_steps']}"
+        f"Initialized scheduler, total steps: {total_steps}, warmup steps: {num_warmup_steps} ({warmup_steps_perc*100:.1f}%)"
     )
     return optimizer, scheduler
 

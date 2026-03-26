@@ -137,6 +137,44 @@ def get_autocast_context(
     return nullcontext()
 
 
+def _init_weights(module: torch.nn.Module, initializer_range: float):
+    if isinstance(module, torch.nn.Linear):
+        # BERT standard: normal distribution for weights, zeros for bias
+        torch.nn.init.normal_(module.weight, mean=0.0, std=initializer_range)
+        if module.bias is not None:
+            torch.nn.init.zeros_(module.bias)
+    elif isinstance(module, torch.nn.Embedding):
+        # BERT standard: normal distribution for weights
+        # Embedding don't use biases (only a lookup matrix)
+        torch.nn.init.normal_(module.weight, mean=0.0, std=initializer_range)
+        if module.padding_idx is not None:
+            module.weight.data[module.padding_idx].zero_()
+    elif isinstance(module, (torch.nn.RMSNorm, torch.nn.LayerNorm)):
+        # RMSNorm/LayerNorm standard: weights to 1, bias to 0
+        torch.nn.init.ones_(module.weight)
+        # RMSNorm don't use bias
+        if hasattr(module, "bias") and module.bias is not None:
+            torch.nn.init.zeros_(module.bias)
+
+
+def initialize_weights(model: torch.nn.Module, config: Dict[str, Any]) -> None:
+    """
+    Initializes model parameters according to BERT, SwiGLU, and RMSNorm standards.
+
+    Args:
+        model: The model to initialize.
+        config: Configuration dictionary containing 'model.initializer_range'.
+    """
+    initializer_range = config["model"].get("initializer_range", 0.02)
+
+    # Apply standard initialization
+    model.apply(lambda m: _init_weights(m, initializer_range))
+
+    logging.info(
+        f"Model weights initialized with initializer_range: {initializer_range}"
+    )
+
+
 def initialize_optimizer_and_scheduler(
     model: torch.nn.Module,
     config: Dict[str, Any],

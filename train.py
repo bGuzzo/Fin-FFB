@@ -26,6 +26,7 @@ from utils.train_utils import (
     get_autocast_context,
     get_device,
     initialize_optimizer_and_scheduler,
+    initialize_weights,
     load_config,
     log_training_results,
     plot_loss_curve,
@@ -54,7 +55,7 @@ def _parse_args() -> argparse.Namespace:
         "--epochs", type=int, default=1, help="Number of training epochs"
     )
     parser.add_argument(
-        "--save_steps", type=int, default=1000, help="Save checkpoint every X steps"
+        "--save_steps", type=int, default=10, help="Save checkpoint every X steps"
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
@@ -97,6 +98,9 @@ def main() -> None:
         ffn_factor=config["model"]["ffn_factor"],
     )
     model = FinFFBForMaskedLM(encoder).to(device)
+
+    # Initialize weights according to standards
+    initialize_weights(model, config)
 
     datasets = [MockDataset()] if args.mock else None
     dataloader = get_dataloader(

@@ -30,9 +30,9 @@ training:
   clip_grad_norm: 1.0
   
   # Scheduler
-  warmup_steps_perc: 0.2   # Linear increase of LR at the start (10% of total steps).
+  warmup_steps_perc: 0.1   # Linear increase of LR at the start (10% of total steps).
 
 dataset:
   # MLM Configuration
-  max_seq_len: 1024
+  max_seq_len: 128 # Test only TOBE removed
   mask_probability: 0.3 # 0.15 as default

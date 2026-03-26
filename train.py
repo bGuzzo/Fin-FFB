@@ -100,6 +100,7 @@ def main() -> None:
         num_heads=config["model"]["num_heads"],
         dropout=config["model"]["dropout"],
         ffn_factor=config["model"]["ffn_factor"],
+        padding_idx=0 # Use 0 as ALBERT use 0
     )
     model = FinFFBForMaskedLM(encoder).to(device)
 
@@ -141,7 +142,7 @@ def main() -> None:
     logging.info(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
     
     start_time = time.time()
-    # accumulated_loss = 0.0
+    accumulated_loss = 0.0
     losses = []
     total_samples = 0
 
@@ -192,7 +193,7 @@ def main() -> None:
                 loss.backward()
 
             clear_memory_cache(device)
-            # accumulated_loss += loss.item()
+            accumulated_loss += loss.item()
 
             # Optimization Step
             if (step + 1) % grad_accum_steps == 0 or (step + 1) == len(dataloader):
@@ -212,24 +213,27 @@ def main() -> None:
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 global_step += 1
-                # losses.append(accumulated_loss)
-                losses.append(loss.item())
+
+                # Normalize loss by gradient accumulation steps
+                accumulated_loss = accumulated_loss / grad_accum_steps
+                losses.append(accumulated_loss)
 
 
                 # Metrics Reporting
                 throughput = total_samples / (time.time() - start_time)
                 epoch_iterator.set_postfix({
-                    "Loss": f"{loss.item():.8f}", # Show last loss (not the sum accumulated)
+                    "Loss": f"{accumulated_loss:.8f}", # Show last loss (not the sum accumulated)
                     "LR": f"{scheduler.get_last_lr()[0]:.2e}",
                     "S/s": f"{throughput:.1f}"
                 })
-                # accumulated_loss = 0.0
+                accumulated_loss = 0.0
 
                 # Checkpointing
                 if global_step % args.save_steps == 0:
                     save_checkpoint({
                         "step": global_step,
                         "model_state_dict": model.state_dict(),
+                        "encoder_state_dict": model.fin_ffb.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
                         "scheduler_state_dict": scheduler.state_dict(),
                         "config": config,

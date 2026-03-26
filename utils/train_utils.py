@@ -347,9 +347,14 @@ def save_final_artifacts(
     timestamp = datetime.now().strftime(TIME_FORMAT)
 
     # Save standard PyTorch state dict
-    state_dict_path = models_dir / f"fin_ffb_{config_name or ''}_{timestamp}_final.pt"
+    state_dict_path = models_dir / f"fin_ffb_mlm_{config_name or ''}_{timestamp}_final.pt"
     torch.save(model.state_dict(), state_dict_path)
-    logging.info(f"Saved final model state to {state_dict_path}")
+    logging.info(f"Saved final model state (MLM) to {state_dict_path}")
+
+    # Save PyTorch state dict for core model (pure Fin-FFB)
+    embd_state_dict_path = models_dir / f"fin_ffb_endc_{config_name or ''}_{timestamp}_final.pt"
+    torch.save(model.fin_ffb.state_dict(), state_dict_path)
+    logging.info(f"Saved final model state (Fin-FFB) to {state_dict_path}")
 
     # Save config for reproducibility
     config_save_path = models_dir / f"config_{config_name or ''}_{timestamp}.json"

@@ -2,13 +2,15 @@ from datasets import load_dataset
 import logging
 
 HF_DATASET_PATH = "/Volumes/NVME_EXT/Datasets/eloukas_edgar-corpus"
-PD_FILE_OUT = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/edgar_corp_05m.parquet"
-NUM_SAMPLES = 500_000
+
+# First compute
+PD_FILE_OUT_1 = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/edgar_corp_1m.parquet"
+NUM_SAMPLES_1 = 1_000_000
 
 def sample_and_save_to_parquet(
     hf_dataset_path: str, 
     output_path: str, 
-    num_samples: int = NUM_SAMPLES, 
+    num_samples: int = NUM_SAMPLES_1, 
     split: str = "all", 
     seed: int = 42
 ):
@@ -50,5 +52,6 @@ def sample_and_save_to_parquet(
 if __name__ == "__main__":
     sample_and_save_to_parquet(
         hf_dataset_path=HF_DATASET_PATH,
-        output_path=PD_FILE_OUT
+        output_path=PD_FILE_OUT_1,
+        num_samples=NUM_SAMPLES_1,
     )

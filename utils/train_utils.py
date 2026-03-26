@@ -289,6 +289,45 @@ def save_checkpoint(
     logging.info(f"Saved checkpoint to {checkpoint_path} for step {global_step}")
 
 
+def load_checkpoint(
+    checkpoint_path: str,
+    model: torch.nn.Module,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[LRScheduler] = None,
+) -> Dict[str, Any]:
+    """
+    Loads a training checkpoint from disk and restores component states.
+
+    Args:
+        checkpoint_path: Path to the .pt checkpoint file.
+        model: The model instance to load weights into.
+        optimizer: Optional optimizer to restore state.
+        scheduler: Optional scheduler to restore state.
+
+    Returns:
+        The full checkpoint dictionary containing metadata (step, epoch, etc.).
+    """
+    path = Path(checkpoint_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Checkpoint file not found: {path}")
+
+    logging.info(f"Loading checkpoint from: {path}")
+    checkpoint = torch.load(path, map_location="cpu")
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    
+    if optimizer and "optimizer_state_dict" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        logging.info("Restored optimizer state.")
+        
+    if scheduler and "scheduler_state_dict" in checkpoint:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        logging.info("Restored scheduler state.")
+
+    logging.info(f"Checkpoint loaded successfully. Resuming from step {checkpoint.get('step', 'unknown')}")
+    return checkpoint
+
+
 def save_final_artifacts(
     model: torch.nn.Module, config: Dict[str, Any], models_dir: Path, config_name: str
 ) -> None:

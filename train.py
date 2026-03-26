@@ -27,6 +27,7 @@ from utils.train_utils import (
     get_device,
     initialize_optimizer_and_scheduler,
     initialize_weights,
+    load_checkpoint,
     load_config,
     log_training_results,
     plot_loss_curve,
@@ -62,6 +63,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mock", action="store_true", help="Use mock dataset for testing"
+    )
+    parser.add_argument(
+        "--resume", type=str, default=None, help="Path to checkpoint for resumption"
     )
     return parser.parse_args()
 
@@ -118,6 +122,18 @@ def main() -> None:
 
     dtype, scaler, use_amp = setup_mixed_precision(config, device)
 
+    # --- Training State Recovery ---
+    start_epoch = 0
+    global_step = 0
+    if args.resume:
+        checkpoint = load_checkpoint(args.resume, model, optimizer, scheduler)
+        global_step = checkpoint.get("step", 0)
+        # Approximate epoch from global_step
+        grad_accum_steps = config["training"]["gradient_accumulation_steps"]
+        steps_per_epoch = math.ceil(len(dataloader) / grad_accum_steps)
+        start_epoch = global_step // steps_per_epoch
+        logging.info(f"Resuming from epoch {start_epoch + 1}, global step {global_step}")
+
     # --- 3. Training Loop ---
     grad_accum_steps = config["training"]["gradient_accumulation_steps"]
     total_steps = math.ceil(len(dataloader) / grad_accum_steps) * args.epochs
@@ -125,7 +141,6 @@ def main() -> None:
     logging.info(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
     
     start_time = time.time()
-    global_step = 0
     accumulated_loss = 0.0
     losses = []
     total_samples = 0
@@ -133,7 +148,7 @@ def main() -> None:
     model.train()
     optimizer.zero_grad(set_to_none=True)
 
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         epoch_iterator = tqdm(
             dataloader,
             desc=f"Epoch {epoch + 1}/{args.epochs}",
@@ -142,6 +157,15 @@ def main() -> None:
         )
 
         for step, batch in enumerate(epoch_iterator):
+            # Skip steps already processed if resuming within an epoch
+            steps_per_epoch = math.ceil(len(dataloader) / grad_accum_steps)
+            current_step_in_epoch = step // grad_accum_steps
+            if epoch == start_epoch and current_step_in_epoch < (global_step % steps_per_epoch):
+                if (step + 1) % grad_accum_steps == 0:
+                    epoch_iterator.set_description(f"Skipping Step {current_step_in_epoch} (checkpoint)")
+                    logging.info(f"Skipping Step {current_step_in_epoch}, it was already done before (from checkpoint).")
+                continue
+
             # Data Movement
             input_ids = batch["input_ids"].to(device, non_blocking=True)
             attention_mask = batch["attention_mask"].to(device, non_blocking=True)

@@ -353,8 +353,8 @@ def save_final_artifacts(
 
     # Save PyTorch state dict for core model (pure Fin-FFB)
     embd_state_dict_path = models_dir / f"fin_ffb_endc_{config_name or ''}_{timestamp}_final.pt"
-    torch.save(model.fin_ffb.state_dict(), state_dict_path)
-    logging.info(f"Saved final model state (Fin-FFB) to {state_dict_path}")
+    torch.save(model.fin_ffb.state_dict(), embd_state_dict_path)
+    logging.info(f"Saved final model state (Fin-FFB) to {embd_state_dict_path}")
 
     # Save config for reproducibility
     config_save_path = models_dir / f"config_{config_name or ''}_{timestamp}.json"

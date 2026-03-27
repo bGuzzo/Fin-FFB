@@ -5,8 +5,8 @@ Verifies NYTDataset, EDGARDataset, CombinedFinancialDataset, and FinancialDataCo
 
 import torch
 from torch.utils.data import DataLoader
-from data_loader.datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset
-from data_loader.collector import FinancialDataCollector, get_dataloader
+from data_loader.old.datasets_utils import NYTDataset, EDGARDataset, CombinedFinancialDataset
+from data_loader.mlm_loader import JitCollator, get_dataloader
 import sys
 
 import logging
@@ -84,7 +84,7 @@ def test_collector():
     # Use a small max_length for testing speed
     max_len = 128
     mlm_prob = 0.15
-    collector = FinancialDataCollector(
+    collector = JitCollator(
         tokenizer_name="albert-base-v2", 
         max_length=max_len, 
         mlm_probability=mlm_prob

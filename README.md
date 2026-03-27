@@ -8,15 +8,18 @@ My idea is to create a shallow, highly-specialized embedding model for financial
 Its primary application is to embed news and financial reports for the [Fin-PT](https://github.com/bGuzzo/Fin-PT) project (next asset price prediction).
 
 ## Core Concepts
-The core idea is to create a large (Fat) and shallow (Fast) model like BERT, but with a parallel optimization: FFN & Self-Attention are computed concurrently and then joined by summation.
+The core idea is to create a large (Fat) and shallow (Fast) model like BERT, but with a parallel optimization: FFN & Self-Attention are computed concurrently and then joined by sum.
 Other optimizations, like gated attention and novel attention residuals (Kimi AI, [Attention Residuals](https://arxiv.org/abs/2603.15031)), are used to gain performance edges and stabilize training.
 
-* Initially, the model will have a maximum of 3 layers, with a d_model of up to 2048.
+* Initially, the model will have a maximum of 3 layers, with a d_model of up to 1024.
 * The tokenized choosen is `albert-base-v2` due to it's small vocabulaty size (30k).
-* **ALiBi** will be use to help the model genelize on longer texts.  
+* **ALiBi** will be use to help the model genelize on longer texts. 
+
+The final dataset is composed of 200k mixed articles for the soruces above, so the model will noto over-focus during training. 
 
 ## Inspiration Papers
 
+* [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
 * [Investigating the Role of Feed-Forward Networks in Transformers Using Parallel Attention and Feed-Forward Net Design](https://arxiv.org/abs/2305.13297)
 * [PaLM: Scaling Language Modeling with Pathways](https://arxiv.org/abs/2204.02311)
 * [Attention Residuals](https://arxiv.org/abs/2603.15031)
@@ -29,10 +32,11 @@ Other optimizations, like gated attention and novel attention residuals (Kimi AI
 
 ## Training
 The dataset is composed of news, reports, and specialized text:
-* 100 years of **New York Times** news (title + abstract): [nyt_100y_news_headlines](https://huggingface.co/datasets/bguzzo2k/nyt_100y_news_headlines)
-* EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face): [edgar_corpus](https://huggingface.co/datasets/eloukas/edgar-corpus)
+* **40%** - 100 years of **New York Times** news (title + abstract): [nyt_100y_news_headlines](https://huggingface.co/datasets/bguzzo2k/nyt_100y_news_headlines)
+* **40%** - EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face): [edgar_corpus](https://huggingface.co/datasets/eloukas/edgar-corpus)
+* **20%** - Wikipedia (wikimedia/wikipedia on Hugging Face): [wikipedia](https://huggingface.co/datasets/wikimedia/wikipedia)
 
-In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 40% as the mask probability (read paper above for more details).  
+In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 30% as the mask probability (read paper above for more details).  
 
 
 ## Improvements (to be applied)

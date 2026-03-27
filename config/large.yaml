@@ -18,12 +18,12 @@ model:
 
 training:
   # Hardware & Efficiency
-  batch_size: 4           # Adjusted for 1024 width.
-  gradient_accumulation_steps: 8 # Effective batch size = 32.
+  batch_size: 256           # Adjusted for memory (4).
+  gradient_accumulation_steps: 32 # Effective batch size = 128 (same rate as original BERT (as for total token per batch)).
   mixed_precision: "bf16"
   
   # Optimization
-  learning_rate: 5.0e-4    # Adjusted for the new model scale. (base 3.0e-4)
+  learning_rate: 5.0e-4    # Higer LR
   weight_decay: 0.01
   betas: [0.9, 0.98]
   eps: 1.0e-6
@@ -34,5 +34,5 @@ training:
 
 dataset:
   # MLM Configuration
-  max_seq_len: 1024 # Test only TOBE removed
-  mask_probability: 0.3 # 0.15 as default
+  max_seq_len: 16 # Test only TOBE removed (default for large, size: 1024)
+  mask_probability: 0.4 # 0.15 as default, using higher rate (I will only train the model with MLM due to time and hardware constraints)

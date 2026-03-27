@@ -17,8 +17,10 @@ from typing import Any, Dict
 import torch
 from tqdm import tqdm
 
-from data_loader.collector import get_dataloader
-from data_loader.datasets_utils import MockDataset
+from data_loader.mlm_loader import get_dataloader
+from data_loader.pd_adpt import PdDataset
+from data_loader.mock_dtst import MockDataset
+
 from model.fin_ffb import FinFFB
 from model.fin_ffb_mlm import FinFFBForMaskedLM
 from utils.train_utils import (
@@ -36,7 +38,6 @@ from utils.train_utils import (
     setup_mixed_precision,
     setup_workspace,
 )
-from data_loader.datasets_utils import NYTDataset, EDGARDataset
 
 
 def _parse_args() -> argparse.Namespace:
@@ -108,14 +109,13 @@ def main() -> None:
     # Initialize weights according to standards
     initialize_weights(model, config)
 
-    datasets = [MockDataset()] if args.mock else [EDGARDataset()]
+    dataset = MockDataset() if args.mock else PdDataset()
     dataloader = get_dataloader(
+        dataset=dataset,
         batch_size=config["training"]["batch_size"],
         max_length=config["dataset"]["max_seq_len"],
         mlm_probability=config["dataset"]["mask_probability"],
-        tokenizer_name="albert-base-v2",
-        num_workers=4,
-        datasets=datasets,
+        tokenizer_name="albert-base-v2"
     )
 
     optimizer, scheduler = initialize_optimizer_and_scheduler(

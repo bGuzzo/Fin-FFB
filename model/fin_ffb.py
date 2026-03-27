@@ -64,10 +64,6 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         self.ffn_factor = ffn_factor
         self.num_heads = num_heads
         self.padding_idx = padding_idx
-
-        self.info_str : str = f"Fin-FBB Version {VERSION}. d_model={d_model}, num_layers={num_layers}, num_heads={num_heads}, dropout(train)={dropout}, ffn_factor={ffn_factor}"
-        logging.info(ASHII_LOGO)
-        logging.info(self.info_str)
         
         # Token Embeddings
         self.embeddings = nn.Embedding(
@@ -103,6 +99,18 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
             ffn_factor=ffn_factor,
             final_layer=True
         )
+
+        # Save model info
+        self.info_str : str = f"Fin-FBB Version {VERSION}. d_model={d_model}, num_layers={num_layers}, num_heads={num_heads}, dropout(train)={dropout}, ffn_factor={ffn_factor}"
+        self.train_prms: int = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self.tot_prms: int = sum(p.numel() for p in self.parameters())
+        self.prms_info_str: str = f"FIN-FBB Version {VERSION}. Trainable Params: {self.train_prms}, Total Params: {self.tot_prms}"
+        
+        logging.info(ASHII_LOGO)
+        logging.info(self.prms_info_str)
+        logging.info(self.info_str)
+
+    # End Init Constructor
 
     def forward(
         self, 

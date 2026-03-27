@@ -36,7 +36,12 @@ The dataset is composed of news, reports, and specialized text:
 * **40%** - EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face): [edgar_corpus](https://huggingface.co/datasets/eloukas/edgar-corpus)
 * **20%** - Wikipedia (wikimedia/wikipedia on Hugging Face): [wikipedia](https://huggingface.co/datasets/wikimedia/wikipedia)
 
-In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 30% as the mask probability (read paper above for more details).  
+In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 40% as the mask probability (read paper above for more details).
+
+The final dataset is composed of 200k articles, accounting for 200 million tokens (`max_len` as 1024).
+* 80k random EDGAR documet sections (by peacking one section per documet).
+* 80k random NYT news, spanning back to 100 years (`{headline}\n{abstract}`).  
+* 20k random Wikipedia articles (`{title}\n{body}`).
 
 
 ## Improvements (to be applied)

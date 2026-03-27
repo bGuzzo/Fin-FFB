@@ -34,5 +34,5 @@ training:
 
 dataset:
   # MLM Configuration
-  max_seq_len: 1024
+  max_seq_len: 1024 # Above that I get OOM
   mask_probability: 0.4 # 0.15 as default, using higher rate (I will only train the model with MLM due to time and hardware constraints)

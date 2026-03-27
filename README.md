@@ -1,54 +1,112 @@
-# Financial Fast Fat BERT Text Encoder
+# Financial Fast Fat BERT (Fin-FFB) Text Encoder
+
+```
+ _____ _             _____ _____ ____  
+|  ___(_)_ __       |  ___|  ___| __ ) 
+| |_  | | '_ \ _____| |_  | |_  |  _ \ 
+|  _| | | | | |_____|  _| |  _| | |_) |
+|_|   |_|_| |_|     |_|   |_|   |____/ 
+```
+A fast, shallow, and wide financial embedding model built for local usage on consumer hardware.
+
+```
+Add photo of model architecture & benchmark/loss.
+```
 
 ## Motivation
-Financial forecasting and analysis tasks require encoding a large number of texts, from articles, reports, news, and earnings statements.
-So, a faster embedding model is crucial, especially when dealing with hardware constraints, such as consumer hardware.
+Financial forecasting and analysis require encoding a massive volume of text-from news headlines and earnings reports to long-form SEC filings. Existing models are often too deep for efficient local inference or too general for niche financial nuances.
 
-My idea is to create a shallow, highly-specialized embedding model for financial purposes. 
-Its primary application is to embed news and financial reports for the [Fin-PT](https://github.com/bGuzzo/Fin-PT) project (next asset price prediction).
+**Fin-FFB** is designed to be a "shallow-but-wide" specialist. By trading depth for width, we achieve high-dimensional representational capacity while keeping latency low enough to run on a standard laptop. Its primary application is extracting the **sentiment of the day** and encoding complex **financial reports** locally.
 
 ## Core Concepts
-The core idea is to create a large (Fat) and shallow (Fast) model like BERT, but with a parallel optimization: FFN & Self-Attention are computed concurrently and then joined by sum.
-Other optimizations, like gated attention and novel attention residuals (Kimi AI, [Attention Residuals](https://arxiv.org/abs/2603.15031)), are used to gain performance edges and stabilize training.
+The architecture disrupts the standard serial BERT design in favor of parallelized blocks and selective information flow:
 
-* Initially, the model will have a maximum of 3 layers, with a d_model of up to 1024.
-* The tokenized choosen is `albert-base-v2` due to it's small vocabulaty size (30k).
-* **ALiBi** will be use to help the model genelize on longer texts. 
+*   **Parallel Computation**: Attention and FFN blocks are computed concurrently on the same normalized input and then summed, following the PaLM/GPT-J approach. This maximizes hardware utilization.
+*   **Full Attention Residuals (AttnRes)**: Instead of standard additive residuals ($h_l = h_{l-1} + f_{l-1}$), we use a depth-wise selective aggregation mechanism. A learned pseudo-query vector decides how much information to "pull" from every preceding layer (including the initial embedding).
+*   **Gated Attention**: Implements a sigmoid gating mechanism on the attention output to improve non-linearity and filter noise.
+*   **Bidirectional ALiBi**: Uses Attention with Linear Biases (ALiBi) instead of positional embeddings, allowing for sequence length extrapolation and better handling of long financial documents.
+*   **Modern Primitives**: Uses **RMSNorm** for stability and **SwiGLU** activations in the FFN for better gradient flow.
 
-The final dataset is composed of 200k mixed articles for the soruces above, so the model will noto over-focus during training. 
+## Model Architecture (Large/Fat Variant)
+According to the `large.yaml` configuration, the primary "Fat" target is:
+
+| Parameter | Value |
+| :--- | :--- |
+| **Vocabulary Size** | 30,000 (ALBERT-base-v2) |
+| **Hidden Dimension ($d_{model}$)** | 1024 |
+| **Layers** | 3 |
+| **Attention Heads** | 16 ($d_{head}=64$) |
+| **FFN Expansion** | 4x ($d_{ffn}=4096$) |
+| **Context Window** | 1024 Tokens |
+| **Activation** | SwiGLU |
+| **Normalization** | RMSNorm |
+
+### Detailed Component Breakdown
+
+#### 1. Parallel Attention & FFN (PaLM-style)
+Traditional Transformers compute Attention followed by an FFN in a serial bottleneck. Fin-FFB disrupts this by computing both concurrently on the same normalized input ($x_{norm} = \text{RMSNorm}(h_l)$). This approach reduces the sequential path length and improves hardware utilization during training:
+$$f_l(h_l) = \text{Dropout}(\text{GatedAttn}(x_{norm}) + \text{SwiGLUFFN}(x_{norm}))$$
+
+#### 2. Gated Attention Mechanism
+To increase the non-linearity of the attention block and provide better noise filtering for dense financial text, we implement a sigmoid gating mechanism. The raw attention output is scaled by a learned gate projection derived from the normalized input:
+*   **Gate Projection**: $\text{Gate} = \sigma(W_g \cdot x_{norm})$
+*   **Selective Filtering**: $\text{Output} = W_o \cdot (\text{Gate} \odot \text{Attn}(x_{norm}))$
+
+#### 3. Full Attention Residuals (AttnRes)
+Instead of standard additive residuals ($h_l = h_{l-1} + v_{l-1}$), Fin-FFB uses a depth-wise selective aggregation mechanism. Each layer $l$ calculates its input $h_l$ by attending to the entire history of previous outputs ($v_0, v_1, \dots, v_{l-1}$):
+*   **Pseudo-Query**: A learned vector $w_l$ computes scalar importance logits for each preceding layer.
+*   **Depth-Wise Softmax**: Weights are normalized across the depth dimension, allowing the model to dynamically "choose" which preceding representations are most relevant for the current transformation.
+*   **Selective Sum**: $h_l = \sum_{i=0}^{l-1} \alpha_i v_i$
+
+#### 4. Dropout Placement & Regularization
+Dropout is strategically placed to maintain training stability across the shallow-but-wide architecture:
+*   **Post-Embedding**: Applied to $v_0$ (initial embeddings) to regularize the massive $1024 \times 30000$ embedding matrix.
+*   **Attention Weights**: Applied to the softmax scores before value aggregation to prevent head dominance.
+*   **Post-Parallel Block**: Applied after the sum of Attention and FFN outputs, acting as the final regularizer before the history update.
+
+## Training Strategy
+The model is trained on a curated **200M token** corpus (200k articles) with a high **40% Masked Language Modeling (MLM)** probability to force the model to understand broader context:
+
+*   **40% - EDGAR-CORPUS**: 80k sections from SEC filings.
+*   **40% - NYT 100Y**: 80k headlines and abstracts spanning a century of news.
+*   **20% - Wikipedia**: 40k articles for general linguistic grounding.
+
+## Implementation Details
+The project is implemented in **PyTorch** with several strategies to enable training on consumer hardware (e.g., MacBook Air M4 or RTX 4060 8GB):
+
+*   **JIT Tokenization**: To save memory, tokenization and MLM masking are performed on-the-fly during batch collation using `data_loader/mlm_loader.py`.
+*   **Gradient Accumulation**: We use a physical batch size of 4 but accumulate gradients over 32 steps to reach a **virtual batch size of 128**, matching the effective training dynamics of larger models.
+*   **Mixed Precision (bf16)**: Specifically optimized for Apple Silicon (MPS) and modern NVIDIA GPUs to reduce VRAM footprint and speed up computation.
+*   **Weight Tying**: The output MLM decoder shares weights with the input embedding matrix, significantly reducing the total parameter count.
+
+## Repo Structure
+```text
+Fin-FFB/
+├── config/             # YAML configs for model variants (Nano, Small, Med, Large, X-Large)
+├── data/               # Parquet datasets (Raw bulk data and processed 'ready' files)
+├── data_loader/        # PyTorch Dataset adapters and JIT MLM Collator
+│   ├── mlm_loader.py   # Core logic for on-the-fly tokenization/masking
+│   └── pd_adpt.py      # Pandas-to-PyTorch adapter for Parquet files
+├── data_utils/         # Pre-processing pipeline for SEC/NYT/Wiki sources
+├── model/              # Core Architecture Implementation
+│   ├── attn_core.py    # Parallel Attention + FFN blocks
+│   ├── attn_res_block.py # Full Attention Residuals (selective aggregation)
+│   ├── alibi_utils.py  # Bidirectional ALiBi bias generation
+│   ├── fin_ffb.py      # Base Encoder
+│   └── fin_ffb_mlm.py  # MLM Pre-training wrapper
+├── utils/              # Training lifecycle, hardware management, and logging
+├── train.py            # Main training entry point
+└── requirements.txt    # Project dependencies
+```
+
+## Hardware Constraints & Performance
+The project is a testament to what's possible with limited resources:
+*   **Apple Silicon Optimization**: Utilizes `MPS` and `bf16` for maximum throughput on M-series chips.
+*   **VRAM Efficiency**: Shallow depth (3 layers) allows for a massive 1024-dimension width even on 8GB cards.
+*   **Training Time**: Optimized to complete a full 200M token pre-training pass in approximately ~30 hours on a consumer setup.
 
 ## Inspiration Papers
-
-* [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
-* [Investigating the Role of Feed-Forward Networks in Transformers Using Parallel Attention and Feed-Forward Net Design](https://arxiv.org/abs/2305.13297)
-* [PaLM: Scaling Language Modeling with Pathways](https://arxiv.org/abs/2204.02311)
-* [Attention Residuals](https://arxiv.org/abs/2603.15031)
-* [Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free](https://arxiv.org/abs/2505.06708)
-* [Root Mean Square Layer Normalization](https://arxiv.org/abs/1910.07467)
-* [EDGAR-CORPUS: Billions of Tokens Make The World Go Round](https://arxiv.org/abs/2109.14394)
-* [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation](https://arxiv.org/abs/2108.12409)
-* [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
-* [Should You Mask 15% in Masked Language Modeling?](https://arxiv.org/abs/2202.08005)
-
-## Training
-The dataset is composed of news, reports, and specialized text:
-* **40%** - 100 years of **New York Times** news (title + abstract): [nyt_100y_news_headlines](https://huggingface.co/datasets/bguzzo2k/nyt_100y_news_headlines)
-* **40%** - EDGAR-CORPUS (eloukas/edgar-corpus on Hugging Face): [edgar_corpus](https://huggingface.co/datasets/eloukas/edgar-corpus)
-* **20%** - Wikipedia (wikimedia/wikipedia on Hugging Face): [wikipedia](https://huggingface.co/datasets/wikimedia/wikipedia)
-
-In the first project phase, the model will only be trained with **MLM** (Masked Language Modeling) with 40% as the mask probability (read paper above for more details).
-
-The final dataset is composed of 200k articles, accounting for 200 million tokens (`max_len` as 1024).
-* 80k random EDGAR documet sections (by peacking one section per documet).
-* 80k random NYT news, spanning back to 100 years (`{headline}\n{abstract}`).  
-* 20k random Wikipedia articles (`{title}\n{body}`).
-
+*   [BERT](https://arxiv.org/abs/1810.04805), [PaLM](https://arxiv.org/abs/2204.02311), [Attention Residuals](https://arxiv.org/abs/2603.15031), [Gated Attention](https://arxiv.org/abs/2505.06708), [ALiBi](https://arxiv.org/abs/2108.12409).
 
 ## Improvements (to be applied)
 * [Query-Key Normalization for Transformers](https://arxiv.org/abs/2010.04245)
-
-
-## Implementation
-TBD
-
-

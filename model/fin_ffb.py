@@ -6,7 +6,7 @@ financial forecasting and analysis. It integrates PaLM-style parallel
 computations, Full Attention Residuals (AttnRes), and Gated Attention.
 """
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 ASHII_LOGO = """"
 
@@ -100,6 +100,9 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
             final_layer=True
         )
 
+        # Final linear projection
+        self.final_proj = nn.Linear(d_model, d_model)
+
         # Save model info
         self.info_str : str = f"Fin-FBB Version {VERSION}. d_model={d_model}, num_layers={num_layers}, num_heads={num_heads}, dropout(train)={dropout}, ffn_factor={ffn_factor}"
         self.train_prms: int = sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -148,8 +151,10 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         # Produces the final output representation h_{L+1}
         h_out = self.final_aggregator(history, attention_mask=attention_mask) # type: ignore
         
-        # 4. Final normlization and linear
+        # 4. Final normalization and linear projection
+        # We apply norm first to stabilize the aggregated representations
         h_out = self.rms_norm(h_out)
+        h_out = self.final_proj(h_out)
         
         if return_history:
             return h_out, history

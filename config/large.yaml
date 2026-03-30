@@ -23,7 +23,7 @@ training:
   mixed_precision: "bf16"
   
   # Optimization
-  learning_rate: 5.0e-4    # Higer LR
+  learning_rate: 1.0e-4    # Lower LR for unstable loss
   weight_decay: 0.01
   betas: [0.9, 0.98]
   eps: 1.0e-6
@@ -35,4 +35,4 @@ training:
 dataset:
   # MLM Configuration
   max_seq_len: 1024 # Above that I get OOM
-  mask_probability: 0.4 # 0.15 as default, using higher rate (I will only train the model with MLM due to time and hardware constraints)
+  mask_probability: 0.15 # Kept as original BERT paper to avoid unstable loss during training.

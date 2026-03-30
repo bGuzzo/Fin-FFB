@@ -13,6 +13,7 @@ from typing import Dict
 
 
 PRQT_FILE = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/fin_ffb_200k_ready.parquet"
+PRQT_PROTO_FILE = "/Volumes/NVME_EXT/GitHub_Repos/Fin-FFB/data/fin_ffb_200_proto_ready.parquet"
 TEXT_COL = "text"
 
 
@@ -29,7 +30,11 @@ class PdDataset(Dataset):
         text_col (str): The name of the column containing the raw text data.
     """
 
-    def __init__(self, prqt_f: str = PRQT_FILE, text_col: str = TEXT_COL):
+    def __init__(
+        self, 
+        proto: bool, 
+        text_col: str = TEXT_COL
+    ):
         """
         Loads the dataset from the specified Parquet file.
 
@@ -37,6 +42,7 @@ class PdDataset(Dataset):
             prqt_f (str): Absolute path to the .parquet file.
             text_col (str): Column name containing the text to be modeled.
         """
+        prqt_f = PRQT_PROTO_FILE if proto else PRQT_FILE
         logging.info(f"Initiating dataset load from: {prqt_f}")
         self.df = pd.read_parquet(prqt_f)
         self.text_col = text_col

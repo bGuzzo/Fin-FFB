@@ -85,7 +85,7 @@ class FinFFBForMaskedLM(nn.Module, PyTorchModelHubMixin):
         attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         **kwargs
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Forward pass for MLM training or inference.
 
@@ -98,7 +98,7 @@ class FinFFBForMaskedLM(nn.Module, PyTorchModelHubMixin):
 
         Returns:
             If labels is None: Logits [batch, seq_len, vocab_size].
-            If labels is provided: (Loss, Logits).
+            If labels is provided: (Loss, Logits, Hidden States).
         """
         # Get hidden states from encoder
         outputs = self.fin_ffb(input_ids, attention_mask=attention_mask, **kwargs)
@@ -117,6 +117,6 @@ class FinFFBForMaskedLM(nn.Module, PyTorchModelHubMixin):
             loss_fct = nn.CrossEntropyLoss()
             # Reshape for loss calculation: [batch * seq_len, vocab_size] vs [batch * seq_len]
             loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
-            return loss, logits
+            return loss, logits, h_out
 
         return logits

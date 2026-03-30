@@ -22,9 +22,106 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from transformers import get_cosine_schedule_with_warmup
 
+import torch.nn.functional as F
 import logging
+from torch.utils.tensorboard import SummaryWriter
 
 TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+
+
+def calculate_cosine_similarity_penalty(
+    hidden_states: torch.Tensor, subset_size: int = 128
+) -> torch.Tensor:
+    """
+    Computes a penalty based on the average cosine similarity between tokens
+    to avoid representation collapse (cone effect / anisotropy).
+
+    Args:
+        hidden_states: Tensor of shape [batch, seq_len, d_model].
+        subset_size: Number of tokens to sample from each context.
+
+    Returns:
+        A scalar tensor representing the average cosine similarity penalty.
+    """
+    batch_size, seq_len, _ = hidden_states.shape
+    actual_subset_size = min(seq_len, subset_size)
+
+    # Sample random indices for each item in the batch
+    # To keep it efficient and vectorized, we'll use one set of random indices for the whole batch
+    indices = torch.randperm(seq_len, device=hidden_states.device)[:actual_subset_size]
+    subset = hidden_states[:, indices, :]  # [batch, subset, d_model]
+
+    # Normalize vectors to unit length
+    subset_norm = F.normalize(subset, p=2, dim=-1)
+
+    # Compute batch-wise cosine similarity matrix: [batch, subset, subset]
+    # S_ij = cos(v_i, v_j)
+    sim_matrix = torch.bmm(subset_norm, subset_norm.transpose(1, 2))
+
+    # We want to minimize the off-diagonal elements (similarity between different tokens)
+    # The diagonal is always 1.0 (similarity with self)
+    mask = torch.eye(actual_subset_size, device=hidden_states.device).bool()
+    
+    # We only care about the off-diagonal elements
+    # Using the sum of all elements minus the diagonal elements (which are all 1)
+    # Note: sim_matrix.sum() is across all batch elements as well.
+    off_diag_sim = sim_matrix.sum() - (batch_size * actual_subset_size)
+    
+    # Average over the number of off-diagonal pairs
+    num_pairs = batch_size * actual_subset_size * (actual_subset_size - 1)
+    penalty = off_diag_sim / num_pairs
+
+    return penalty
+
+
+def setup_tensorboard(training_dir: Path, config_name: str) -> SummaryWriter:
+    """
+    Initializes a TensorBoard SummaryWriter.
+
+    Args:
+        training_dir: Path to the training artifacts directory.
+        config_name: Name of the configuration used.
+
+    Returns:
+        A SummaryWriter instance.
+    """
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    log_dir = training_dir / "runs" / f"{config_name}_{timestamp}"
+    logging.info(f"TensorBoard logging enabled. Logs at: {log_dir}")
+    return SummaryWriter(log_dir=str(log_dir))
+
+
+def log_tensorboard_stats(
+    writer: SummaryWriter,
+    step: int,
+    loss: float,
+    model: torch.nn.Module,
+) -> None:
+    """
+    Logs loss, gradient norms, gradient histograms, and weights to TensorBoard.
+
+    Args:
+        writer: The SummaryWriter instance.
+        step: The current absolute micro-step.
+        loss: The current micro-batch loss (normalized by grad_accum_steps).
+        model: The model being trained.
+    """
+    writer.add_scalar("Loss/train_micro", loss, step)
+
+    total_grad_norm = 0.0
+    for name, param in model.named_parameters():
+        # Log weights histogram
+        writer.add_histogram(f"Weights/{name}", param.data, step)
+
+        # Log gradients if they exist
+        if param.grad is not None:
+            param_norm = param.grad.detach().data.norm(2).item()
+            total_grad_norm += param_norm**2
+            writer.add_scalar(f"Gradients_L2/{name}", param_norm, step)
+            writer.add_histogram(f"Gradients_Hist/{name}", param.grad.detach().data, step)
+
+    total_grad_norm = total_grad_norm**0.5
+    writer.add_scalar("Gradients_Total/norm", total_grad_norm, step)
 
 
 def load_config(config_name: str) -> Dict[str, Any]:

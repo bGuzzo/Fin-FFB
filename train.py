@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from data_loader.mlm_loader import get_dataloader
@@ -37,7 +38,11 @@ from utils.train_utils import (
     save_final_artifacts,
     setup_mixed_precision,
     setup_workspace,
+    log_tensorboard_stats,
+    setup_tensorboard,
+    calculate_cosine_similarity_penalty,
 )
+import numpy as np
 
 
 def _parse_args() -> argparse.Namespace:
@@ -69,6 +74,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--resume", type=str, default=None, help="Path to checkpoint for resumption"
     )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable TensorBoard logging"
+    )
     return parser.parse_args()
 
 
@@ -91,6 +99,10 @@ def main() -> None:
     device = get_device()
     models_dir, training_dir = setup_workspace()
     
+    writer = None
+    if args.debug:
+        writer = setup_tensorboard(training_dir, args.config)
+
     logging.info(f"Using device: {device}")
     logging.info(f"Initializing model using '{args.config}' config...")
 
@@ -109,7 +121,7 @@ def main() -> None:
     # Initialize weights according to standards
     initialize_weights(model, config)
 
-    dataset = MockDataset() if args.mock else PdDataset()
+    dataset = MockDataset() if args.mock else PdDataset(proto=True)
     dataloader = get_dataloader(
         dataset=dataset,
         batch_size=config["training"]["batch_size"],
@@ -143,8 +155,8 @@ def main() -> None:
     logging.info(f"Starting training: {args.epochs} epochs, {total_steps} opt steps.")
     
     start_time = time.time()
-    accumulated_loss = 0.0
     losses = []
+    batch_losses = []
     total_samples = 0
 
     model.train()
@@ -176,11 +188,22 @@ def main() -> None:
 
             # Forward Pass
             with get_autocast_context(device, dtype, use_amp):
-                loss, _ = model(
+                # model returns (loss, logits, h_out) when labels are provided
+                mlm_loss, _, h_out = model(
                     input_ids=input_ids, attention_mask=attention_mask, labels=labels
                 )
+                
+                # Add Cosine Similarity Penalty to avoid representation collapse (cone effect)
+                cosine_penalty = calculate_cosine_similarity_penalty(h_out, subset_size=128)
+                lambda_cosine = config["training"].get("lambda_cosine", 0.01)
+                
+                total_loss = mlm_loss + (lambda_cosine * cosine_penalty)
+                
                 # Normalize the loss so gradients scale correctly
-                loss = loss / grad_accum_steps
+                loss = total_loss / grad_accum_steps
+                
+                if args.debug:
+                    tqdm.write(f"Current loss at step {step} (not scaled): {total_loss.item():.8f}")
 
             if not math.isfinite(loss.item()):
                 tqdm.write(f"Warning: Non-finite loss at step {step}. Skipping...")
@@ -192,9 +215,15 @@ def main() -> None:
                 scaler.scale(loss).backward()
             else:
                 loss.backward()
+            
+            # Record the raw total loss (not divided by grad_accum) for accurate averaging
+            batch_losses.append(total_loss.item())
+
+            if writer:
+                abs_step = epoch * len(dataloader) + step
+                log_tensorboard_stats(writer, abs_step, loss.item(), model)
 
             clear_memory_cache(device)
-            accumulated_loss += loss.item()
 
             # Optimization Step
             if (step + 1) % grad_accum_steps == 0 or (step + 1) == len(dataloader):
@@ -215,19 +244,18 @@ def main() -> None:
                 optimizer.zero_grad(set_to_none=True)
                 global_step += 1
 
-                # Normalize loss by gradient accumulation steps
-                accumulated_loss = accumulated_loss / grad_accum_steps
-                losses.append(accumulated_loss)
-
+                # Average loss for the accumulation window
+                avg_loss = np.mean(batch_losses)
+                losses.append(avg_loss)
 
                 # Metrics Reporting
                 throughput = total_samples / (time.time() - start_time)
                 epoch_iterator.set_postfix({
-                    "Loss": f"{accumulated_loss:.8f}", # Show last loss (not the sum accumulated)
+                    "Loss": f"{avg_loss:.8f}",
                     "LR": f"{scheduler.get_last_lr()[0]:.2e}",
                     "S/s": f"{throughput:.1f}"
                 })
-                accumulated_loss = 0.0
+                batch_losses = []
 
                 # Checkpointing
                 if global_step % args.save_steps == 0:
@@ -263,6 +291,9 @@ def main() -> None:
 
     # Generate loss visualization
     plot_loss_curve(losses, training_dir, args.config)
+
+    if writer:
+        writer.close()
 
     logging.info(f"Session complete. Logs: {training_dir}")
 

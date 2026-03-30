@@ -6,7 +6,7 @@ financial forecasting and analysis. It integrates PaLM-style parallel
 computations, Full Attention Residuals (AttnRes), and Gated Attention.
 """
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 ASHII_LOGO = """"
 
@@ -25,6 +25,8 @@ import torch
 import torch.nn as nn
 from typing import List, Optional, Tuple, Union
 from .attn_res_block import AttnResBlock
+from .amygdala import AmygdalaIndexer
+from .attn_core import AttentionLayer
 from huggingface_hub import PyTorchModelHubMixin
 import torch.nn.functional as F
 import logging
@@ -77,26 +79,36 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         
         # Transformation Layers (Intermediate)
         # Each layer l computes v_l = f_l(h_l) where h_l = AttnRes(v_0...v_{l-1})
-        self.layers = nn.ModuleList([
+        module_list = [
             AttnResBlock(
-                layer_idx=i,
+                inner_layer=AmygdalaIndexer(d_model=d_model),
                 d_model=self.d_model,
-                num_heads=self.num_heads,
-                dropout=self.dropout,
-                ffn_factor=self.ffn_factor,
                 final_layer=False
             )
-            for i in range(num_layers)
-        ])
+        ]
+        for i in range(num_layers):
+            module_list.append(
+                AttnResBlock(
+                    inner_layer=AttentionLayer(
+                        layer=i+1,
+                        d_model=d_model,
+                        num_heads=num_heads,
+                        dropout=dropout,
+                        ffn_factor=ffn_factor
+                    ),
+                    d_model=self.d_model,
+                    final_layer=False
+                )
+            )
+
+
+        self.layers = nn.ModuleList(module_list)
         
         # Final Aggregation Layer
         # Computes final representation h_{L+1} = AttnRes(v_0...v_L)
         self.final_aggregator = AttnResBlock(
-            layer_idx=num_layers,
+            inner_layer=None,
             d_model=d_model,
-            num_heads=num_heads,
-            dropout=dropout,
-            ffn_factor=ffn_factor,
             final_layer=True
         )
 

@@ -31,11 +31,8 @@ class AttnResBlock(nn.Module):
     
     def __init__(
         self,
-        layer_idx: int,
+        inner_layer: Optional[nn.Module],
         d_model: int,
-        num_heads: int | None = None,
-        dropout: float | None = None,
-        ffn_factor: int = 4,
         final_layer: bool = False
     ):
         """
@@ -54,20 +51,11 @@ class AttnResBlock(nn.Module):
                 the aggregated hidden state directly for the output head.
         """
         super(AttnResBlock, self).__init__()
-        self.layer_idx = layer_idx
         self.d_model = d_model
         self.final_layer = final_layer
         
         if not self.final_layer:
-            # The core transformation layer f_l(h_l).
-            # Computes Attention and FFN in parallel (PaLM style).
-            self.layer = AttentionLayer(
-                layer=layer_idx,
-                d_model=d_model,
-                num_heads=num_heads,
-                dropout=dropout,
-                ffn_factor=ffn_factor
-            )
+            self.layer = inner_layer
         
         # Learned pseudo-query vector (w_l) for depth-wise attention.
         # Represented as a Linear projection to compute scalar logits for each source.

@@ -57,6 +57,8 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         num_heads: int = 12,
         dropout: float = 0.1,
         ffn_factor: int = 4,
+        amygd_d_latent: int = 64,
+        amygd_temp: float = 0.1,
         padding_idx: Optional[int] = None
     ):
         super(FinFFB, self).__init__()
@@ -66,6 +68,8 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         self.ffn_factor = ffn_factor
         self.num_heads = num_heads
         self.padding_idx = padding_idx
+        self.amygd_d_latent = amygd_d_latent
+        self.amygd_temp = amygd_temp
         
         # Token Embeddings
         self.embeddings = nn.Embedding(
@@ -81,7 +85,7 @@ class FinFFB(nn.Module, PyTorchModelHubMixin):
         # Each layer l computes v_l = f_l(h_l) where h_l = AttnRes(v_0...v_{l-1})
         module_list = [
             AttnResBlock(
-                inner_layer=AmygdalaIndexer(d_model=d_model),
+                inner_layer=AmygdalaIndexer(d_model=d_model, d_latent=amygd_d_latent, temp=amygd_temp),
                 d_model=self.d_model,
                 final_layer=False
             )

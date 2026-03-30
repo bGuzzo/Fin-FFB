@@ -114,6 +114,8 @@ def main() -> None:
         num_heads=config["model"]["num_heads"],
         dropout=config["model"]["dropout"],
         ffn_factor=config["model"]["ffn_factor"],
+        amygd_d_latent=config["model"]["amygd_d_latent"],
+        amygd_temp=config["model"]["amyg_temp"],
         padding_idx=0 # Use 0 as ALBERT use 0
     )
     model = FinFFBForMaskedLM(encoder).to(device)
@@ -121,7 +123,7 @@ def main() -> None:
     # Initialize weights according to standards
     initialize_weights(model, config)
 
-    dataset = MockDataset() if args.mock else PdDataset(proto=True)
+    dataset = MockDataset() if args.mock else PdDataset(proto=False)
     dataloader = get_dataloader(
         dataset=dataset,
         batch_size=config["training"]["batch_size"],

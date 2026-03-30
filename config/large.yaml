@@ -16,6 +16,10 @@ model:
   # Initialization & Normalization
   initializer_range: 0.02
 
+  # Amygdala
+  amygd_d_latent: 64
+  amyg_temp: 0.1
+
 training:
   # Hardware & Efficiency
   batch_size: 4           # Adjusted for memory (4).

@@ -123,7 +123,7 @@ def main() -> None:
     # Initialize weights according to standards
     initialize_weights(model, config)
 
-    dataset = MockDataset() if args.mock else PdDataset(proto=False)
+    dataset = MockDataset() if args.mock else PdDataset(proto=True)
     dataloader = get_dataloader(
         dataset=dataset,
         batch_size=config["training"]["batch_size"],

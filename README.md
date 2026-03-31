@@ -23,6 +23,7 @@ The architecture disrupts the standard serial BERT design in favor of paralleliz
 
 *   **Parallel Computation**: Attention and FFN blocks are computed concurrently on the same normalized input and then summed, following the PaLM/GPT-J approach. This maximizes hardware utilization.
 *   **Full Attention Residuals (AttnRes)**: Instead of standard additive residuals ($h_l = h_{l-1} + f_{l-1}$), we use a depth-wise selective aggregation mechanism. A learned pseudo-query vector decides how much information to "pull" from every preceding layer (including the initial embedding).
+*   **Amygdala Salience Filtering (Layer 0)**: A biological-inspired pre-processing layer that acts as a high-pass filter. It uses sharp, low-temperature latent attention to identify and highlight the most salient tokens (e.g., critical financial terms, "shocks") before the deeper transformer layers process the sequence.
 *   **Gated Attention**: Implements a sigmoid gating mechanism on the attention output to improve non-linearity and filter noise.
 *   **Bidirectional ALiBi**: Uses Attention with Linear Biases (ALiBi) instead of positional embeddings, allowing for sequence length extrapolation and better handling of long financial documents.
 *   **Modern Primitives**: Uses **RMSNorm** for stability and **SwiGLU** activations in the FFN for better gradient flow.
@@ -34,7 +35,7 @@ According to the `large.yaml` configuration, the primary "Fat" target is:
 | :--- | :--- |
 | **Vocabulary Size** | 30,000 (ALBERT-base-v2) |
 | **Hidden Dimension ($d_{model}$)** | 1024 |
-| **Layers** | 3 |
+| **Layers** | 3 (+ Amygdala Layer 0) |
 | **Attention Heads** | 16 ($d_{head}=64$) |
 | **FFN Expansion** | 4x ($d_{ffn}=4096$) |
 | **Context Window** | 1024 Tokens |
@@ -58,7 +59,14 @@ Instead of standard additive residuals ($h_l = h_{l-1} + v_{l-1}$), Fin-FFB uses
 *   **Depth-Wise Softmax**: Weights are normalized across the depth dimension, allowing the model to dynamically "choose" which preceding representations are most relevant for the current transformation.
 *   **Selective Sum**: $h_l = \sum_{i=0}^{l-1} \alpha_i v_i$
 
-#### 4. Dropout Placement & Regularization
+#### 4. Amygdala Indexer (Layer 0)
+The Amygdala Indexer mimics the biological amygdala's role as a primary filter for salient information. Positioned as "Layer 0" in the AttnRes framework, it scans for crucial tokens before deeper processing.
+*   **Purpose**: It provides an "emotional" high-pass filter that identifies high-impact tokens.
+*   **Dual-Path Initialization**: Creates a parallel path for gradients. Subsequent layers can choose between raw embeddings and these salient highlights, significantly accelerating convergence.
+*   **Representation De-correlation**: Sharp, low-temperature attention helps break the "embedding cone" effect (representation collapse) by introducing high-entropy signals early.
+*   **Latent Efficiency**: Operating in a reduced dimensional space ($d_{latent} \ll d_{model}$) allows for complex salience filtering with minimal computational overhead.
+
+#### 5. Dropout Placement & Regularization
 Dropout is strategically placed to maintain training stability across the shallow-but-wide architecture:
 *   **Post-Embedding**: Applied to $v_0$ (initial embeddings) to regularize the massive $1024 \times 30000$ embedding matrix.
 *   **Attention Weights**: Applied to the softmax scores before value aggregation to prevent head dominance.
@@ -70,6 +78,9 @@ The model is trained on a curated **200M token** corpus (200k articles) with a h
 *   **40% - EDGAR-CORPUS**: 80k sections from SEC filings.
 *   **40% - NYT 100Y**: 80k headlines and abstracts spanning a century of news.
 *   **20% - Wikipedia**: 40k articles for general linguistic grounding.
+
+## Evaluation & Benchmarks
+*Evaluation and comparison to other financial models (e.g., FinBERT, BloombergGPT-lite) are currently in progress and will be added here once validated.*
 
 ## Implementation Details
 The project is implemented in **PyTorch** with several strategies to enable training on consumer hardware (e.g., MacBook Air M4 or RTX 4060 8GB):
@@ -89,6 +100,7 @@ Fin-FFB/
 │   └── pd_adpt.py      # Pandas-to-PyTorch adapter for Parquet files
 ├── data_utils/         # Pre-processing pipeline for SEC/NYT/Wiki sources
 ├── model/              # Core Architecture Implementation
+│   ├── amygdala.py     # Amygdala Indexer (Layer 0 salience filter)
 │   ├── attn_core.py    # Parallel Attention + FFN blocks
 │   ├── attn_res_block.py # Full Attention Residuals (selective aggregation)
 │   ├── alibi_utils.py  # Bidirectional ALiBi bias generation
